@@ -171,7 +171,7 @@ def define_model_lstm() -> Tuple[tf.keras.Model, np.ndarray, int, float, int]:
     output = tf.keras.layers.Dense(1)(dense)
     model = tf.keras.Model(inputs, output)
     initial_weights = model.get_weights()
-    epochs = 10
+    epochs = 5
     lr = 0.0005
     bs = 32
     return model, initial_weights, epochs, lr, bs
@@ -219,14 +219,14 @@ def prepare_data(
 
     # convert timedelta
     solar["timedelta"] = pd.to_timedelta(solar["timedelta"])
-    sunspots["timedelta"] = pd.to_timedelta(sunspots["timedelta"])
-    sunspots.sort_values(["period", "timedelta"], inplace=True)
-    sunspots["month"] = list(range(len(sunspots)))
-    sunspots["month"] = sunspots["month"].astype(int)
 
     # merge data
     solar["days"] = solar["timedelta"].dt.days
     if isinstance(sunspots, pd.DataFrame):
+        sunspots["timedelta"] = pd.to_timedelta(sunspots["timedelta"])
+        sunspots.sort_values(["period", "timedelta"], inplace=True)
+        sunspots["month"] = list(range(len(sunspots)))
+        sunspots["month"] = sunspots["month"].astype(int)
         sunspots["days"] = sunspots["timedelta"].dt.days
         solar = pd.merge(
             solar,
@@ -254,7 +254,8 @@ def prepare_data(
         )
 
     # fill missing data
-    solar["month"] = solar["month"].fillna(method="ffill")
+    if "month" in solar.columns:
+        solar["month"] = solar["month"].fillna(method="ffill")
     train_cols = [
         "bt",
         "density",
