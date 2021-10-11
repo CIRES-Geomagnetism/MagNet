@@ -106,6 +106,9 @@ def define_model_cnn() -> Tuple[tf.keras.Model, np.ndarray, int, float, int]:
     Returns:
         keras model
         array of initial weights used to reset the model to its original state
+        number of epochs
+        learning rate
+        batch size
     """
 
     inputs = tf.keras.layers.Input((6 * 24 * 7, 13))
@@ -155,6 +158,9 @@ def define_model_lstm() -> Tuple[tf.keras.Model, np.ndarray, int, float, int]:
     Returns:
         keras model
         array of initial weights used to reset the model to its original state
+        number of epochs
+        learning rate
+        batch size
     """
 
     inputs = tf.keras.layers.Input((6 * 24 * 7, 13))
