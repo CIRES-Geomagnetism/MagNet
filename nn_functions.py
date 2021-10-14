@@ -31,30 +31,31 @@ class DataGen(tf.keras.utils.Sequence):
     ):
         """Construct the data generator.
 
-        If y is not None, will generate batches of pairs of x and y data, suitable for
-        training. If y is None, will generate batches of x data only, suitable for
-        prediction.
+        If ``y`` is not ``None``, will generate batches of pairs of x and y data,
+        suitable for training. If ``y`` is ``None``, will generate batches of ``x``
+        data only, suitable for prediction.
 
-        x and y data must already be ordered by period and time. The training sample
-        generated for an index i in valid_ind will have target y[i] and x variables from
-        rows (i - length + 1) to i (inclusive) of x.  If there are multiple periods,
-        there should be at least (length - 1) data points before the first valid_ind in
-        each period, otherwise the sequence for that valid_ind will include data from
-        a previous period.
+        ``x`` and ``y`` data must already be ordered by period and time. The training
+        sample generated for an index ``i`` in ``valid_ind`` will have target ``y[i]``
+        and ``x`` variables from rows ``(i - length + 1)`` to ``i`` (inclusive) of
+        ``x``.  If there are multiple periods, there should be at least ``(length - 1)``
+        data points before the first ``valid_ind`` in each period, otherwise the
+        sequence for that valid_ind will include data from a previous period.
 
         Args:
-            x: np.array containing the x variables ordered by period and time
-            y: None or np.array containing the targets corresponding to the x variables
-            batch_size: batch size
-            valid_inds: np.array of int containing the indices which are valid
-                end-points of training sequences (for example, we may set valid_inds so
-                it contains only the data points at the start of each hour).
-            length: the number of data points in each sequence of the batch.
-            shuffle: whether to shuffle the list of valid_inds before training and after
-                each epoch. For training, it is recommended to set this to True, so that
+            x: Array containing the x variables ordered by period and time
+            y: ``None`` or array containing the targets corresponding to the ``x``
+                variables
+            batch_size: Size of training batches
+            valid_inds: Array of ``int`` containing the indices which are valid
+                end-points of training sequences (for example, we may set ``valid_inds``
+                so it contains only the data points at the start of each hour).
+            length: Number of data points in each sequence of the batch
+            shuffle: Whether to shuffle ``valid_ind`` before training and after
+                each epoch. For training, it is recommended to set this to ``True``, so
                 each batch contains a varied sample of data from different times. For
-                prediction, it should be set to False, so that the predicted values are
-                in the same order as the input data.
+                prediction, it should be set to ``False``, so that the predicted values
+                are in the same order as the input data.
         """
 
         self.x = x
@@ -67,7 +68,7 @@ class DataGen(tf.keras.utils.Sequence):
             np.random.shuffle(self.valid_inds)
 
     def __get_y__(self):
-        """Return the array of labels at valid_inds."""
+        """Return the array of labels indexed by ``valid_ind``."""
         if self.y is None:
             raise RuntimeError("Generator has no y data.")
         else:
@@ -78,7 +79,7 @@ class DataGen(tf.keras.utils.Sequence):
         return int(np.ceil(len(self.valid_inds) / self.batch_size))
 
     def __getitem__(self, idx):
-        """Generate a batch. idx is the index of the batch in the training epoch."""
+        """Generate a batch. ``idx`` is the index of the batch in the training epoch."""
         if (idx < self.__len__() - 1) or (len(self.valid_inds) % self.batch_size == 0):
             num_samples = self.batch_size
         else:
@@ -105,11 +106,12 @@ def define_model_cnn() -> Tuple[tf.keras.Model, np.ndarray, int, float, int]:
     """Define the structure of the neural network.
 
     Returns:
-        keras model
-        array of initial weights used to reset the model to its original state
-        number of epochs
-        learning rate
-        batch size
+        model: keras model
+        initial_weights: Array of initial weights used to reset the model to its
+            original state
+        epochs: Number of epochs
+        lr: Learning rate
+        bs: Batch size
     """
 
     inputs = tf.keras.layers.Input((6 * 24 * 7, 13))
@@ -157,11 +159,12 @@ def define_model_lstm() -> Tuple[tf.keras.Model, np.ndarray, int, float, int]:
     """Define the structure of the neural network.
 
     Returns:
-        keras model
-        array of initial weights used to reset the model to its original state
-        number of epochs
-        learning rate
-        batch size
+        model: keras model
+        initial_weights: Array of initial weights used to reset the model to its
+            original state
+        epochs: Number of epochs
+        lr: Learning rate
+        bs: Batch size
     """
 
     inputs = tf.keras.layers.Input((6 * 24 * 7, 13))
@@ -188,28 +191,28 @@ def prepare_data(
     """
     Prepare data for training or prediction.
 
-    If dst is None, prepare DataFrame of feature variables only for prediction using
-    previously-calculated normalization scaling factors in norm_data_folder. In this
-    case norm_factor must not be None. If dst is not None, prepare DataFrame of feature
-    variables and labels for model training. Calculate normalization scaling factors and
-    save in output_folder. In this case output_folder must not be None.
+    If ``dst`` is ``None``, prepare dataframe of feature variables only for prediction
+    using previously-calculated normalization scaling factors in ``norm_df``.
+    If ``dst`` is not ``None``, prepare dataframe of feature variables and labels for
+    model training. Calculate normalization scaling factors and
+    save in ``output_folder``. In this case ``output_folder`` must not be ``None``.
 
     Aggregate solar_data into 1-minute intervals and calculate the mean and standard
     deviation. Merge with sunspot data. Normalize the training data and save the scaling
     parameters in a dataframe (these are needed to transform data for prediction).
 
-    This method modifies the input DataFrames solar, sunspots, and dst; if you want to
-    keep the original DataFrames, pass copies, e.g. ``prepare_data(solar.copy(),
-    sunspots.copy(), dst.copy())``.
+    This method modifies the input dataframes ``solar``, ``sunspots``, and ``dst``; if
+    you want to keep the original dataframes, pass copies, e.g.
+    ``prepare_data(solar.copy(), sunspots.copy(), dst.copy())``.
 
     Args:
         solar: DataFrame containing solar wind data
-        sunspots: DataFrame containing sunspots data, or float. If DataFrame, will be
+        sunspots: DataFrame containing sunspots data, or float. If dataframe, will be
             merged with solar data using timestamp. If float, all rows of output data
             will use this number.
-        dst: None, or DataFrame containing the disturbance storm time (DST) data, i.e. t
-            he labels for training
-        norm_df: None, or DataFrame containing the normalization scaling factors to
+        dst: ``None``, or DataFrame containing the disturbance storm time (DST) data,
+        i.e. the labels for training
+        norm_df: ``None``, or DataFrame containing the normalization scaling factors to
             apply
         output_folder: Path to the directory where normalisation dataframe will be saved
 
@@ -347,26 +350,26 @@ def train_nn_models(
         sunspots: DataFrame containing sunspots data
         dst: DataFrame containing the disturbance storm time (DST) data, i.e. the labels
             for training
-        model_definer: function returning keras model and initial weights
-        num_models: number of models to train.
+        model_definer: Function returning keras model and initial weights
+        num_models: Number of models to train.
             Training several models on different subsets of the data and averaging
-            results improves model accuracy. If num_models = 1, use all data for
-            training. If num_models > 1, each model will be trained on
-            int((num_models - 1) / num_models) * num_months randomly-selected months of
-            data, where num_months is the total number of months in the training data.
-            Because the data contains long-term trends lasting days or weeks, splitting
-            the data by month ensures that different models have sufficiently
+            results improves model accuracy. If ``num_models = 1``, use all data for
+            training. If ``num_models > 1``, each model will be trained on
+            ``int((num_models - 1) / num_models) * num_months`` randomly-selected months
+            of data, where ``num_months`` is the total number of months in the training
+            data. Because the data contains long-term trends lasting days or weeks,
+            splitting the data by month ensures that different models have sufficiently
             different data sets to obtain the benefits of model diversity. Separate
             models are trained for the current and next hour, so the number of models
-            output will be num_models * 2.
+            output will be ``num_models * 2``.
         output_folder: Path to the directory where models will be saved
 
     Returns:
-        out-of-sample accuracy: If num_models > 1, returns list of length num_models
-            containing RMSE values for out-of-sample predictions for each model. These
-            provide an indication of model accuracy, but in general will underestimate
-            the accuracy of the full ensemble of models. If num_models = 1, returns
-            None.
+        out-of-sample accuracy: If ``num_models > 1``, returns list of length
+            ``num_models`` containing RMSE values for out-of-sample predictions for each
+            model. These provide an indication of model accuracy, but in general will
+            underestimate the accuracy of the full ensemble of models. If
+            ``num_models = 1``, returns ``None``.
     """
 
     # prepare data
@@ -479,13 +482,13 @@ def load_models(
     """Define the model structure and load the saved weights of the trained models.
 
     Args:
-        input_folder: path to location where models weights are saved
-        num_models: number of models trained for each of t and t + 1 (total number of
-            models in folder should be 2 * num_models)
+        input_folder: Path to location where models weights are saved
+        num_models: Number of models trained for each of ``t`` and ``t + 1`` (total
+            number of models in folder should be ``2 * num_models``)
 
     Returns:
-        model_t_arr: List of models for time t
-        model_t_plus_one_arr: List of models for time t + 1
+        model_t_arr: List of models for time ``t``
+        model_t_plus_one_arr: List of models for time ``t + 1``
         norm_df: DataFrame of scaling factors to normalize the data
     """
     model, _ = define_model_cnn()
@@ -512,18 +515,19 @@ def predict_one_time(
     norm_df: pd.DataFrame,
 ) -> Tuple[float, float]:
     """
-    Given 7 days of data at 1-minute frequency up to time t-1, make predictions for
-    times t and t+1.
+    Given 7 days of data at 1-minute frequency up to time ``t-1``, make predictions for
+    times ``t`` and ``t+1``.
 
     Args:
-        solar_wind_7d: previous 7 days of satellite data up to (t - 1) minutes
-        latest_sunspot_number: latest available monthly sunspot number (SSN)
-        model_t_arr: List of models for time t
-        model_t_plus_one_arr: List of models for time t + 1
+        solar_wind_7d: Previous 7 days of satellite data up to ``(t - 1)`` minutes
+        latest_sunspot_number: Latest available monthly sunspot number (SSN)
+        model_t_arr: List of models for time ``t``
+        model_t_plus_one_arr: List of models for time ``(t + 1)``
         norm_df: Scaling factors to normalize the data
 
     Returns:
-        predictions : predictions for times t and t + 1 hour
+        prediction_at_t0: Predictions for time ``t``
+        prediction_at_t1: Predictions for time ``t + 1``
     """
 
     # prepare data
@@ -568,14 +572,15 @@ def predict_batch(
         solar: DataFrame containing solar wind data
         sunspots: DataFrame containing sunspots data
         prediction_times: DataFrame with a single column `timedelta` for which to make
-            predictions. For each value t, return predictions for t and t plus one hour.
-        model_t_arr: List of models for time t
-        model_t_plus_one_arr: List of models for time t + 1
+            predictions. For each value ``t``, return predictions for ``t`` and
+            ``t`` plus one hour.
+        model_t_arr: List of models for time ``t``
+        model_t_plus_one_arr: List of models for time ``(t + 1)``
         norm_df: Scaling factors to normalize the data
 
     Returns:
-        predictions: DataFrame with columns timedelta, period, prediction_t and
-            prediction_t_plus_1
+        predictions: DataFrame with columns ``timedelta``, ``period``, ``prediction_t``
+            and ``prediction_t_plus_1``
     """
 
     # validate input data
