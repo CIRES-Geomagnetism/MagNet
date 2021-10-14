@@ -6,6 +6,7 @@ from typing import Callable, List, Optional, Tuple, Union
 import pandas as pd
 from sklearn.metrics import mean_squared_error
 import numpy as np
+
 # uncomment to turn off gpu (see https://stackoverflow.com/a/45773574)
 # os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 import tensorflow as tf
@@ -84,7 +85,7 @@ class DataGen(tf.keras.utils.Sequence):
             num_samples = len(self.valid_inds) % self.batch_size
         x = np.empty((num_samples, self.length, self.x.shape[1]))
         end_indexes = self.valid_inds[
-            idx * self.batch_size: (idx + 1) * self.batch_size
+            idx * self.batch_size : (idx + 1) * self.batch_size
         ]
         for n, i in enumerate(end_indexes):
             x[n] = self.x[i - self.length + 1 : i + 1, :]
@@ -559,6 +560,9 @@ def predict_batch(
 
     Input data must be sorted by period and time and have 1-minute frequency, and there
     must be at least 1 week of data before the first prediction time.
+
+    Results will be slightly different to ``predict_one_time``, since in that function
+    missing data is filled using only data from the previous week.
 
     Args:
         solar: DataFrame containing solar wind data

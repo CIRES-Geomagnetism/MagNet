@@ -30,4 +30,6 @@ dst = pd.concat([dst_train, dst_test], axis=1)
 # train and save models
 output_folder = os.path.join("trained_models", "cnn", "all_data")
 os.makedirs(output_folder, exist_ok=True)
-train_nn_models(solar_train, sunspots_train, dst_train, define_model_cnn, 5, output_folder)
+train_nn_models(
+    solar_train, sunspots_train, dst_train, define_model_cnn, 5, output_folder
+)
