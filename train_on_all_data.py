@@ -17,9 +17,9 @@ def main():
     sunspots_test = pd.read_csv(os.path.join(data_folder, "private", "sunspots.csv"))
 
     # combine test and train
-    solar = pd.concat([solar_train, solar_test], axis=1)
-    sunspots = pd.concat([sunspots_train, sunspots_test], axis=1)
-    dst = pd.concat([dst_train, dst_test], axis=1)
+    solar = pd.concat([solar_train, solar_test], axis=0)
+    sunspots = pd.concat([sunspots_train, sunspots_test], axis=0)
+    dst = pd.concat([dst_train, dst_test], axis=0)
 
     # train and save models
     output_folder = os.path.join("trained_models", "cnn", "all_data")
