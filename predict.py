@@ -12,15 +12,11 @@ from preprocessing import DataGen, prepare_data
 
 
 def load_models(
-    model_definition: Callable[[], Tuple[tf.keras.Model, np.ndarray, int, float, int]],
-    input_folder: str,
-    num_models: int,
+    input_folder: str, num_models: int,
 ) -> Tuple[List[tf.keras.Model], List[tf.keras.Model], pd.DataFrame]:
     """Define the model structure and load the saved weights of the trained models.
 
     Args:
-        model_definition: function returning a keras model and training parameters, as
-            found in the ``model_definitions`` module.
         input_folder: Path to location where models weights are saved
         num_models: Number of models trained for each of ``t`` and ``t + 1`` (total
             number of models in folder should be ``2 * num_models``)
@@ -30,18 +26,17 @@ def load_models(
         model_t_plus_one_arr: List of models for time ``t + 1``
         norm_df: DataFrame of scaling factors to normalize the data
     """
-    model = model_definition()[0]
     model_t_arr = []
     model_t_plus_one_arr = []
     for i in range(num_models):
-        new_model = tf.keras.models.clone_model(model)
-        new_model.load_weights(os.path.join(input_folder, "model_t_{}.h5".format(i)))
-        model_t_arr.append(new_model)
-        new_model = tf.keras.models.clone_model(model)
-        new_model.load_weights(
+        model = tf.keras.models.load_model(
+            os.path.join(input_folder, "model_t_{}.h5".format(i))
+        )
+        model_t_arr.append(model)
+        model = tf.keras.models.load_model(
             os.path.join(input_folder, "model_t_plus_one_{}.h5".format(i))
         )
-        model_t_plus_one_arr.append(new_model)
+        model_t_plus_one_arr.append(model)
     norm_df = pd.read_csv(os.path.join(input_folder, "norm_df.csv"), index_col=0)
     return model_t_arr, model_t_plus_one_arr, norm_df
 

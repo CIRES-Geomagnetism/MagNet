@@ -57,9 +57,7 @@ def benchmark(
     training_time = time.time() - t
     # measure performance on train and test
     t = time.time()
-    model_t_arr, model_t_plus_1_arr, norm_df = load_models(
-        model_definition, output_folder, 1
-    )
+    model_t_arr, model_t_plus_1_arr, norm_df = load_models(output_folder, 1)
     dst_test["timedelta"] = pd.to_timedelta(dst_test["timedelta"])
     # exclude times in the first week of dst_test
     dst_test = dst_test.loc[dst_test["timedelta"] >= dt.timedelta(days=7)]

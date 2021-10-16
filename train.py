@@ -129,9 +129,7 @@ def train_nn_models(
                 sequence_length,
             )
             model.fit(train_gen, epochs=epochs, verbose=2)
-        model.save_weights(
-            os.path.join(output_folder, "model_t_{}.h5".format(model_ind))
-        )
+        model.save(os.path.join(output_folder, "model_t_{}.h5".format(model_ind)))
         # t + 1 model
         tf.keras.backend.clear_session()
         model.compile(
@@ -148,7 +146,7 @@ def train_nn_models(
             sequence_length,
         )
         model.fit(data_gen, epochs=epochs, verbose=2)
-        model.save_weights(
+        model.save(
             os.path.join(output_folder, "model_t_plus_one_{}.h5".format(model_ind))
         )
         if num_models > 1:
