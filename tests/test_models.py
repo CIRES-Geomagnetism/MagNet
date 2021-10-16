@@ -5,50 +5,100 @@ import numpy as np
 import os
 from preprocessing import prepare_data
 from predict import predict_batch, predict_one_time
+from train import train_nn_models
 import tensorflow as tf
 
 
 @pytest.fixture
-def test_data(tmpdir):
-    """Load small dataset and calculate normalization factors."""
+def raw_data():
     data_folder = os.path.join("..", "test_data")
     solar_train = pd.read_csv(os.path.join(data_folder, "public", "solar_wind.csv"))
     dst_train = pd.read_csv(os.path.join(data_folder, "public", "dst_labels.csv"))
     sunspots_train = pd.read_csv(os.path.join(data_folder, "public", "sunspots.csv"))
+    return solar_train, sunspots_train, dst_train
+
+
+@pytest.fixture
+def prepared_data(raw_data, tmpdir):
+    """Load small dataset and calculate normalization factors."""
+    solar_train, sunspots_train, dst_train = raw_data
     _, _ = prepare_data(solar_train, sunspots_train, dst_train, output_folder=tmpdir)
     norm_df = pd.read_csv(os.path.join(tmpdir, "norm_df.csv"), index_col=0)
     return solar_train, sunspots_train, dst_train, norm_df
 
 
-@pytest.fixture
-def simple_models(test_data):
-    """Create a simple model with random weights."""
+def simple_model_definer():
     inputs = tf.keras.layers.Input((6 * 24 * 7, 13))
     dense = tf.keras.layers.Dense(1, activation="relu")(inputs)
     output = tf.keras.layers.Dense(1, activation="relu")(
         tf.keras.layers.Flatten()(dense)
     )
     model = tf.keras.Model(inputs, output)
+    initial_weights = model.get_weights()
+    epochs = 1
+    lr = 0.00025
+    bs = 32
+    return model, initial_weights, epochs, lr, bs
+
+
+@pytest.fixture
+def simple_models():
+    """Create a simple model with random weights."""
+    model = simple_model_definer()[0]
     model.set_weights([np.random.random(w.shape) * 0.1 for w in model.weights])
-    model_plus_one = tf.keras.Model(inputs, output)
+    model_plus_one = tf.keras.models.clone_model(model)
     model_plus_one.set_weights(
         [np.random.random(w.shape) * 0.1 for w in model_plus_one.weights]
     )
     return model, model_plus_one
 
 
-def test_no_nulls_in_prepared_data(test_data, tmpdir):
+def test_load(simple_models, prepared_data, tmpdir):
+    m1, m2 = simple_models
+    m1.save(os.path.join(tmpdir, "model_t_0.h5"))
+    m2.save(os.path.join(tmpdir, "model_t_plus_one_0.h5"))
+    m1_new = tf.keras.models.load_model(os.path.join(tmpdir, "model_t_0.h5"))
+    m2_new = tf.keras.models.load_model(os.path.join(tmpdir, "model_t_plus_one_0.h5"))
+    # test that predicting with reloaded model give same result
+    solar, sunspots, dst, norm_df = prepared_data
+    prediction_times = dst.loc[dst["timedelta"] >= dt.timedelta(days=7)].copy()
+    pred1 = predict_batch(solar, sunspots, prediction_times, [m1], [m2], norm_df)
+    pred2 = predict_batch(
+        solar, sunspots, prediction_times, [m1_new], [m2_new], norm_df
+    )
+    np.testing.assert_allclose(
+        pred1[["prediction_t", "prediction_t_plus_1"]].values,
+        pred2[["prediction_t", "prediction_t_plus_1"]].values,
+    )
+
+
+def test_train(simple_models, raw_data, prepared_data, tmpdir):
+    solar, sunspots, dst = raw_data
+    train_nn_models(solar, sunspots, dst, simple_model_definer, 1, tmpdir)
+    # test models can be loaded and used for prediction
+    m1 = tf.keras.models.load_model(os.path.join(tmpdir, "model_t_0.h5"))
+    m2 = tf.keras.models.load_model(os.path.join(tmpdir, "model_t_plus_one_0.h5"))
+    # test that predicting with reloaded model give same result
+    solar, sunspots, dst, norm_df = prepared_data
+    prediction_times = dst.loc[dst["timedelta"] >= dt.timedelta(days=7)].copy()
+    pred = predict_batch(solar, sunspots, prediction_times, [m1], [m2], norm_df)
+    assert (
+        np.isnan(pred[["prediction_t", "prediction_t_plus_1"]].values).sum().sum() == 0
+    )
+
+
+def test_no_nulls_in_prepared_data(prepared_data, tmpdir):
     """Test that output of prepare_data contains no nulls in training or target
     columns."""
-    solar, sunspots, dst, norm_df = test_data
+    solar, sunspots, dst, norm_df = prepared_data
     df, train_cols = prepare_data(solar, sunspots, dst, output_folder=tmpdir)
     assert df[train_cols + ["target", "target_shift"]].notnull().all().all()
 
 
-def test_predict_one_time_vs_predict_batch(test_data, simple_models):
+def test_predict_one_time_vs_predict_batch(prepared_data, simple_models):
     """Test that predict_one_time and predict_batch give same result if
     there is no missing data."""
-    solar, sunspots, dst, norm_df = test_data
+    solar, sunspots, dst, norm_df = prepared_data
     solar = solar.fillna(method="ffill").fillna(method="bfill")
     solar.loc[solar["temperature"] <= 1, "temperature"] = 10
     model, model_plus_one = simple_models
