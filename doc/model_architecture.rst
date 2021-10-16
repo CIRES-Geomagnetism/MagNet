@@ -3,6 +3,11 @@ Model architecture
 
 Here we describe the model architecture for the CNN model defined in ``model_definitions.define_model_cnn``.
 
+.. figure:: _static/cnn_diagram.pdf
+   :scale: 90 %
+
+   CNN model architecture.
+
 The model consists of a set of convolutional layers which detect patterns at progressively longer time spans. At each convolutional
 layer (except the last), a convolutional filter is applied having size 6 with stride 3, which reduces the size of the output data
 relative to the input. (The last convolution has small input size, so it just convolves all its 9 inputs

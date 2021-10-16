@@ -9,7 +9,7 @@ Title
 .. toctree::
    :maxdepth: 2
 
-   intro
+   model_architecture
    quick_start
 
 Source code reference
@@ -40,14 +40,14 @@ Scripts
 =======
 
 benchmark
--------
+---------
 .. automodule:: benchmark
 
 make_test_data
--------
+--------------
 .. automodule:: make_test_data
 
 train_on_all_data
--------
+-----------------
 .. automodule:: train_on_all_data
 
