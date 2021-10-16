@@ -3,7 +3,8 @@ import pytest
 import pandas as pd
 import numpy as np
 import os
-from nn_functions import DataGen, prepare_data, predict_batch, predict_one_time
+from preprocessing import prepare_data
+from predict import predict_batch, predict_one_time
 import tensorflow as tf
 
 
