@@ -8,7 +8,7 @@ import numpy as np
 import tensorflow as tf
 
 
-def prepare_data(
+def prepare_data_1_min(
     solar: pd.DataFrame,
     sunspots: Union[pd.DataFrame, float],
     dst: pd.DataFrame = None,
@@ -24,7 +24,7 @@ def prepare_data(
     model training. Calculate normalization scaling factors and
     save in ``output_folder``. In this case ``output_folder`` must not be ``None``.
 
-    Aggregate solar_data into 1-minute intervals and calculate the mean and standard
+    Aggregate solar_data into 10-minute intervals and calculate the mean and standard
     deviation. Merge with sunspot data. Normalize the training data and save the scaling
     parameters in a dataframe (these are needed to transform data for prediction).
 
@@ -33,7 +33,8 @@ def prepare_data(
     ``prepare_data(solar.copy(), sunspots.copy(), dst.copy())``.
 
     Args:
-        solar: DataFrame containing solar wind data
+        solar: DataFrame containing solar wind data. This function uses the GSM
+            co-ordinates.
         sunspots: DataFrame containing sunspots data, or float. If dataframe, will be
             merged with solar data using timestamp. If float, all rows of output data
             will use this number.
@@ -158,6 +159,142 @@ def prepare_data(
 
     # sample at 10-minute frequency
     solar = solar.loc[solar["timedelta"].dt.seconds % 600 == 0].reset_index()
+
+    return solar, train_cols
+
+
+def prepare_data_hourly(
+    solar: pd.DataFrame,
+    sunspots: Union[pd.DataFrame, float],
+    dst: pd.DataFrame = None,
+    norm_df=None,
+    output_folder: str = None,
+) -> Tuple[pd.DataFrame, List[str]]:
+    """
+    Prepare data for training or prediction.
+
+    If ``dst`` is ``None``, prepare dataframe of feature variables only for prediction
+    using previously-calculated normalization scaling factors in ``norm_df``.
+    If ``dst`` is not ``None``, prepare dataframe of feature variables and labels for
+    model training. Calculate normalization scaling factors and
+    save in ``output_folder``. In this case ``output_folder`` must not be ``None``.
+
+    Normalize the training data and save the scaling parameters in a dataframe (these
+    are needed to transform data for prediction).
+
+    This method modifies the input dataframes ``solar``, ``sunspots``, and ``dst``; if
+    you want to keep the original dataframes, pass copies, e.g.
+    ``prepare_data(solar.copy(), sunspots.copy(), dst.copy())``.
+
+    Args:
+        solar: DataFrame containing solar wind data. This function uses the GSE
+            co-ordinates.
+        sunspots: DataFrame containing sunspots data, or float. If dataframe, will be
+            merged with solar data using timestamp. If float, all rows of output data
+            will use this number.
+        dst: ``None``, or DataFrame containing the disturbance storm time (DST) data,
+        i.e. the labels for training
+        norm_df: ``None``, or DataFrame containing the normalization scaling factors to
+            apply
+        output_folder: Path to the directory where normalisation dataframe will be saved
+
+
+    Returns:
+        DataFrame containing processed data and labels
+    """
+
+    # convert timedelta
+    solar["timedelta"] = pd.to_timedelta(solar["timedelta"])
+
+    # merge data
+    solar["days"] = solar["timedelta"].dt.days
+    if isinstance(sunspots, pd.DataFrame):
+        sunspots["timedelta"] = pd.to_timedelta(sunspots["timedelta"])
+        sunspots.sort_values(["period", "timedelta"], inplace=True)
+        sunspots["month"] = list(range(len(sunspots)))
+        sunspots["month"] = sunspots["month"].astype(int)
+        sunspots["days"] = sunspots["timedelta"].dt.days
+        solar = pd.merge(
+            solar,
+            sunspots[["period", "days", "smoothed_ssn", "month"]],
+            "left",
+            ["period", "days"],
+        )
+    else:
+        solar["smoothed_ssn"] = sunspots
+    solar.drop(columns="days", inplace=True)
+    if dst is not None:
+        dst["timedelta"] = pd.to_timedelta(dst["timedelta"])
+        solar = pd.merge(solar, dst, "left", ["period", "timedelta"])
+    solar.sort_values(["period", "timedelta"], inplace=True)
+    solar.reset_index(inplace=True, drop=True)
+
+    # remove anomalous data (exclude from training and fill for prediction)
+    solar["bad_data"] = False
+    solar.loc[solar["temperature"] < 1, "bad_data"] = True
+    solar.loc[solar["temperature"] < 1, ["temperature", "speed", "density"]] = np.nan
+    for p in ["train_a", "train_b", "train_c"]:
+        curr_period = solar["period"] == p
+        solar.loc[curr_period, "train_exclude"] = (
+            solar.loc[curr_period, "bad_data"].rolling(24 * 7, center=False).max()
+        )
+
+    # fill missing data
+    if "month" in solar.columns:
+        solar["month"] = solar["month"].fillna(method="ffill")
+    train_cols = [
+        "bt",
+        "density",
+        "speed",
+        "bx_gse",
+        "by_gse",
+        "bz_gse",
+        "smoothed_ssn",
+    ]
+    train_short = [c for c in train_cols if c != "smoothed_ssn"]
+    for p in solar["period"].unique():
+        curr_period = solar["period"] == p
+        solar.loc[curr_period, "smoothed_ssn"] = (
+            solar.loc[curr_period, "smoothed_ssn"]
+            .fillna(method="ffill", axis=0)
+            .fillna(method="bfill", axis=0)
+        )
+        roll = (
+            solar[train_short]
+            .rolling(window=20, min_periods=1)
+            .mean()
+            .interpolate("linear", axis=0)
+        )
+        solar.loc[curr_period, train_short] = solar.loc[
+            curr_period, train_short
+        ].fillna(roll)
+        solar.loc[curr_period, train_short] = (
+            solar.loc[curr_period, train_short]
+            .fillna(method="ffill", axis=0)
+            .fillna(method="bfill", axis=0)
+        )
+
+    # normalize data using median and inter-quartile range
+    if norm_df is None:
+        norm_df = solar[train_cols].median().to_frame("median")
+        norm_df["lq"] = solar[train_cols].quantile(0.25)
+        norm_df["uq"] = solar[train_cols].quantile(0.75)
+        norm_df["iqr"] = norm_df["uq"] - norm_df["lq"]
+        norm_df.to_csv(os.path.join(output_folder, "norm_df.csv"))
+    solar[train_cols] = (solar[train_cols] - norm_df["median"]) / norm_df["iqr"]
+
+    if dst is not None:
+        # interpolate target and shift target since we only have data up to t - 1 minute
+        solar["target"] = (
+            solar["dst"].shift(-1).interpolate(method="linear", limit_direction="both")
+        )
+        # shift target for training t + 1 hour model
+        solar["target_shift"] = solar["target"].shift(-1)
+        solar["target_shift"] = solar["target_shift"].fillna(method="ffill")
+        assert solar[train_cols + ["target", "target_shift"]].isnull().sum().sum() == 0
+
+    train_cols = ["density", "speed", "bx_gse", "by_gse", "bz_gse", "smoothed_ssn"]
+    solar[train_cols] = solar[train_cols].astype(float)
 
     return solar, train_cols
 

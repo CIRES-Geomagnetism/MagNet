@@ -1,17 +1,14 @@
 import os
-import datetime as dt
-import time
 from typing import Callable, List, Optional, Tuple, Union
 
 import pandas as pd
-from sklearn.metrics import mean_squared_error
 import numpy as np
 
 # uncomment to turn off gpu (see https://stackoverflow.com/a/45773574)
 # os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 import tensorflow as tf
 
-from preprocessing import prepare_data, DataGen
+from preprocessing import prepare_data_1_min, prepare_data_hourly, DataGen
 
 
 def train_nn_models(
@@ -21,6 +18,7 @@ def train_nn_models(
     model_definer: Callable[[], Tuple[tf.keras.Model, np.ndarray, int, float, int]],
     num_models: int = 1,
     output_folder: str = "trained_models",
+    data_frequency: str = "minute"
 ) -> Optional[List[float]]:
     """Train and save ensemble of models, each trained on a different subset of data.
 
@@ -42,6 +40,7 @@ def train_nn_models(
             models are trained for the current and next hour, so the number of models
             output will be ``num_models * 2``.
         output_folder: Path to the directory where models will be saved
+        data_frequency: frequency of the training data: "minute" or "hour"
 
     Returns:
         out-of-sample accuracy: If ``num_models > 1``, returns list of length
@@ -52,24 +51,32 @@ def train_nn_models(
     """
 
     # prepare data
-    solar, train_cols = prepare_data(
-        solar, sunspots, dst, output_folder=output_folder, norm_df=None
-    )
+    if data_frequency == "minute":
+        solar, train_cols = prepare_data_1_min(
+            solar, sunspots, dst, output_folder=output_folder, norm_df=None
+        )
+    else:
+        solar, train_cols = prepare_data_hourly(
+            solar, sunspots, dst, output_folder=output_folder, norm_df=None
+        )
 
     # define model and training parameters
     model, initial_weights, epochs, lr, bs = model_definer()
-    sequence_length = 6 * 24 * 7
+    if data_frequency == "minute":
+        sequence_length = 6 * 24 * 7
+    else:
+        sequence_length = 24 * 7
 
     oos_accuracy = []
     # train on sequences ending at the start of an hour
-    valid_bool = solar.index % 6 == 0
+    valid_bool = solar['timedelta'].dt.seconds % 3600 == 0
     np.random.seed(0)
     solar["month"] = solar["month"].astype(int)
     months = np.sort(solar["month"].unique())
     # remove the first week from each period, because not enough data for prediction
     valid_ind_arr = []
     for p in solar["period"].unique():
-        all_p = solar.loc[(solar["period"] == p) & valid_bool].index.values[24 * 7 :]
+        all_p = solar.loc[(solar["period"] == p) & valid_bool].index.values[24 * 7:]
         valid_ind_arr.append(all_p)
     valid_ind = np.concatenate(valid_ind_arr)
     non_exclude_ind = solar.loc[~solar["train_exclude"].astype(bool)].index.values
@@ -87,7 +94,7 @@ def train_nn_models(
             # define train and test sets
             leave_out_months = months[
                 model_ind
-                * (len(months) // num_models) : (model_ind + 1)
+                * (len(months) // num_models): (model_ind + 1)
                 * (len(months) // num_models)
             ]
             leave_out_months_ind = solar.loc[
@@ -128,7 +135,7 @@ def train_nn_models(
                 bs,
                 sequence_length,
             )
-            model.fit(train_gen, epochs=epochs, verbose=2)
+            model.fit(train_gen, epochs=epochs, verbose=1)
         model.save(os.path.join(output_folder, "model_t_{}.h5".format(model_ind)))
         # t + 1 model
         tf.keras.backend.clear_session()
@@ -145,7 +152,7 @@ def train_nn_models(
             bs,
             sequence_length,
         )
-        model.fit(data_gen, epochs=epochs, verbose=2)
+        model.fit(data_gen, epochs=epochs, verbose=1)
         model.save(
             os.path.join(output_folder, "model_t_plus_one_{}.h5".format(model_ind))
         )
