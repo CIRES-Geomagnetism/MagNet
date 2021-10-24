@@ -70,6 +70,9 @@ def train_nn_models(
     oos_accuracy = []
     # train on sequences ending at the start of an hour
     valid_bool = solar['timedelta'].dt.seconds % 3600 == 0
+    # exclude periods where data contains nans
+    nans_in_train = solar[train_cols].isnull().any(axis=1).rolling(window=sequence_length + 1, center=False).max()
+    valid_bool = valid_bool & (nans_in_train == 0)
     np.random.seed(0)
     solar["month"] = solar["month"].astype(int)
     months = np.sort(solar["month"].unique())

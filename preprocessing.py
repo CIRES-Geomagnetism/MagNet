@@ -79,7 +79,7 @@ def prepare_data_1_min(
     solar["bad_data"] = False
     solar.loc[solar["temperature"] < 1, "bad_data"] = True
     solar.loc[solar["temperature"] < 1, ["temperature", "speed", "density"]] = np.nan
-    for p in ["train_a", "train_b", "train_c"]:
+    for p in solar["period"].unique():
         curr_period = solar["period"] == p
         solar.loc[curr_period, "train_exclude"] = (
             solar.loc[curr_period, "bad_data"].rolling(60 * 24 * 7, center=False).max()
@@ -206,6 +206,9 @@ def prepare_data_hourly(
     # convert timedelta
     solar["timedelta"] = pd.to_timedelta(solar["timedelta"])
 
+    # calculate bt
+    solar["bt"] = np.sqrt(solar["bx_gse"] ** 2 + solar["by_gse"] ** 2 + solar["bz_gse"] ** 2)
+
     # merge data
     solar["days"] = solar["timedelta"].dt.days
     if isinstance(sunspots, pd.DataFrame):
@@ -233,7 +236,7 @@ def prepare_data_hourly(
     solar["bad_data"] = False
     solar.loc[solar["temperature"] < 1, "bad_data"] = True
     solar.loc[solar["temperature"] < 1, ["temperature", "speed", "density"]] = np.nan
-    for p in ["train_a", "train_b", "train_c"]:
+    for p in solar["period"].unique():
         curr_period = solar["period"] == p
         solar.loc[curr_period, "train_exclude"] = (
             solar.loc[curr_period, "bad_data"].rolling(24 * 7, center=False).max()
@@ -251,6 +254,8 @@ def prepare_data_hourly(
         "bz_gse",
         "smoothed_ssn",
     ]
+
+
     train_short = [c for c in train_cols if c != "smoothed_ssn"]
     for p in solar["period"].unique():
         curr_period = solar["period"] == p
@@ -259,11 +264,12 @@ def prepare_data_hourly(
             .fillna(method="ffill", axis=0)
             .fillna(method="bfill", axis=0)
         )
+        # fill short gaps with interpolation
         roll = (
             solar[train_short]
             .rolling(window=20, min_periods=1)
             .mean()
-            .interpolate("linear", axis=0)
+            .interpolate("linear", axis=0, limit=24)
         )
         solar.loc[curr_period, train_short] = solar.loc[
             curr_period, train_short
@@ -291,7 +297,6 @@ def prepare_data_hourly(
         # shift target for training t + 1 hour model
         solar["target_shift"] = solar["target"].shift(-1)
         solar["target_shift"] = solar["target_shift"].fillna(method="ffill")
-        assert solar[train_cols + ["target", "target_shift"]].isnull().sum().sum() == 0
 
     train_cols = ["density", "speed", "bx_gse", "by_gse", "bz_gse", "smoothed_ssn"]
     solar[train_cols] = solar[train_cols].astype(float)

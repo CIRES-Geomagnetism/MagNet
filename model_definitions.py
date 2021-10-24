@@ -93,17 +93,17 @@ def define_model_cnn_hourly() -> Tuple[tf.keras.Model, np.ndarray, int, float, i
     comb1 = tf.keras.layers.Concatenate(axis=2)(
         [
             conv5,
-            tf.keras.layers.Cropping1D((334, 0))(conv1),
-            tf.keras.layers.Cropping1D((108, 0))(conv2),
-            tf.keras.layers.Cropping1D((34, 0))(conv3),
-            tf.keras.layers.Cropping1D((8, 0))(conv4),
+            tf.keras.layers.Cropping1D((167, 0))(conv1),
+            tf.keras.layers.Cropping1D((54, 0))(conv2),
+            tf.keras.layers.Cropping1D((16, 0))(conv3),
+            tf.keras.layers.Cropping1D((2, 0))(conv4),
         ]
     )
     dense = tf.keras.layers.Dense(50, activation="relu")(comb1)
     output = tf.keras.layers.Flatten()(tf.keras.layers.Dense(1)(dense))
     model = tf.keras.Model(inputs, output)
     initial_weights = model.get_weights()
-    epochs = 2
+    epochs = 5
     lr = 0.00025
     bs = 32
     return model, initial_weights, epochs, lr, bs
