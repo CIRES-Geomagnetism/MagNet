@@ -162,7 +162,7 @@ def define_model_cnn_lstm() -> Tuple[tf.keras.Model, np.ndarray, int, float, int
     return model, initial_weights, epochs, lr, bs
 
 
-def define_model_lstm() -> Tuple[tf.keras.Model, np.ndarray, int, float, int]:
+def define_model_lstm_1_min() -> Tuple[tf.keras.Model, np.ndarray, int, float, int]:
     """Define the structure of the neural network.
 
     Returns:
@@ -183,6 +183,32 @@ def define_model_lstm() -> Tuple[tf.keras.Model, np.ndarray, int, float, int]:
     model = tf.keras.Model(inputs, output)
     initial_weights = model.get_weights()
     epochs = 5
+    lr = 0.00025
+    bs = 32
+    return model, initial_weights, epochs, lr, bs
+
+
+def define_model_lstm_hourly() -> Tuple[tf.keras.Model, np.ndarray, int, float, int]:
+    """Define the structure of the neural network.
+
+    Returns:
+        model: keras model
+        initial_weights: Array of initial weights used to reset the model to its
+            original state
+        epochs: Number of epochs
+        lr: Learning rate
+        bs: Batch size
+    """
+
+    inputs = tf.keras.layers.Input((24 * 7, 6))
+    lstm1 = tf.keras.layers.LSTM(50, activation="tanh", return_sequences=True)(inputs)
+    lstm2 = tf.keras.layers.LSTM(50, activation="tanh", return_sequences=True)(lstm1)
+    lstm3 = tf.keras.layers.LSTM(50, activation="tanh", return_sequences=False)(lstm2)
+    dense = tf.keras.layers.Dense(50, activation="tanh")(lstm3)
+    output = tf.keras.layers.Dense(1)(dense)
+    model = tf.keras.Model(inputs, output)
+    initial_weights = model.get_weights()
+    epochs = 10
     lr = 0.00025
     bs = 32
     return model, initial_weights, epochs, lr, bs

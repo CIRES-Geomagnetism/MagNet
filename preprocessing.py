@@ -105,19 +105,19 @@ def prepare_data_1_min(
             .fillna(method="ffill", axis=0)
             .fillna(method="bfill", axis=0)
         )
+        # fill short gaps with interpolation
         roll = (
             solar[train_short]
             .rolling(window=20, min_periods=5)
             .mean()
-            .interpolate("linear", axis=0)
+            .interpolate("linear", axis=0, limit=60)
         )
         solar.loc[curr_period, train_short] = solar.loc[
             curr_period, train_short
         ].fillna(roll)
         solar.loc[curr_period, train_short] = (
             solar.loc[curr_period, train_short]
-            .fillna(method="ffill", axis=0)
-            .fillna(method="bfill", axis=0)
+            .fillna(solar.loc[curr_period, train_short].mean(), axis=0)
         )
 
     # normalize data using median and inter-quartile range
@@ -255,7 +255,6 @@ def prepare_data_hourly(
         "smoothed_ssn",
     ]
 
-
     train_short = [c for c in train_cols if c != "smoothed_ssn"]
     for p in solar["period"].unique():
         curr_period = solar["period"] == p
@@ -269,15 +268,14 @@ def prepare_data_hourly(
             solar[train_short]
             .rolling(window=20, min_periods=1)
             .mean()
-            .interpolate("linear", axis=0, limit=24)
+            .interpolate("linear", axis=0, limit=1)
         )
         solar.loc[curr_period, train_short] = solar.loc[
             curr_period, train_short
         ].fillna(roll)
         solar.loc[curr_period, train_short] = (
             solar.loc[curr_period, train_short]
-            .fillna(method="ffill", axis=0)
-            .fillna(method="bfill", axis=0)
+            .fillna(solar.loc[curr_period, train_short].mean(), axis=0)
         )
 
     # normalize data using median and inter-quartile range
