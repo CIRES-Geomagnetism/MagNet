@@ -22,10 +22,11 @@ hours_in_year = (year_plus_one_timestamp - year_timestamp).dt.total_seconds() //
 hours = np.round((solar["Decimal year"] - year) * hours_in_year, 0)
 solar["timestamp"] = year_timestamp + pd.to_timedelta(hours, unit="hour")
 solar["timedelta"] = solar["timestamp"] - solar["timestamp"].min()
-solar.to_csv(os.path.join("data", "old", "solar_wind.csv"))
+solar.rename(columns={"Dst": "dst", "source_imf": "source"}, inplace=True)
+output_cols = ["period", "timedelta" , "bx_gse", "by_gse", "bz_gse", "density", "speed", "source"]
+solar[output_cols].to_csv(os.path.join("data", "old", "solar_wind.csv"), index=False)
 
 # save dst separately
-solar.rename(columns={"Dst": "dst"}, inplace=True)
 solar[["period", "timedelta", "dst"]].to_csv(
     os.path.join("data", "old", "dst_labels.csv")
 )
@@ -57,5 +58,8 @@ days = np.round((ssn["decimal_year"] - year) * days_in_year, 0)
 ssn["timestamp"] = year_timestamp + pd.to_timedelta(days, unit="day")
 # calculate timedelta relative to same start time as solar wind data
 ssn["timedelta"] = ssn["timestamp"] - solar["timestamp"].min()
+ssn = ssn.loc[ssn["timestamp"] >= solar["timestamp"].min()]
 ssn["period"] = "train_d"
-ssn.to_csv(os.path.join("data", "old", "sunspots.csv"))
+ssn.rename(columns={"ssn": "smoothed_ssn"}, inplace=True)
+output_cols = ["period", "timedelta", "smoothed_ssn"]
+ssn[output_cols].to_csv(os.path.join("data", "old", "sunspots.csv"), index=False)
