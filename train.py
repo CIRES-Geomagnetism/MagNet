@@ -1,6 +1,7 @@
 import os
 from typing import Callable, List, Optional, Tuple, Union
 
+import inspect
 import pandas as pd
 import numpy as np
 
@@ -56,6 +57,10 @@ def train_nn_models(
             ``num_models = 1``, returns ``None``.
     """
 
+    # Write model definition to log file
+    with open(os.path.join(output_folder, "log.txt"), "w") as f:
+        f.write(inspect.getsource(model_definer))
+
     # prepare data
     if data_frequency == "minute":
         solar, train_cols = prepare_data_1_min(
@@ -96,8 +101,9 @@ def train_nn_models(
     valid_ind = np.concatenate(valid_ind_arr)
     non_exclude_ind = solar.loc[~solar["train_exclude"].astype(bool)].index.values
     np.random.shuffle(months)
-    es_callback = tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=2,
-                                                   restore_best_weights=True)
+    es_callback = tf.keras.callbacks.EarlyStopping(
+        monitor="val_loss", patience=2, restore_best_weights=True
+    )
     for model_ind in range(num_models):
         # t model
         tf.keras.backend.clear_session()
@@ -201,6 +207,12 @@ def train_nn_models(
                 )
                 model.fit(train_gen, epochs=epochs, verbose=1)
         model.save(os.path.join(output_folder, "model_t_{}.h5".format(model_ind)))
+        if early_stopping:
+            with open(os.path.join(output_folder, "log.txt"), "a") as f:
+                es_iter = es_callback.stopped_epoch - es_callback.patience + 1
+                f.write(
+                    f"\n\nEarly stopping iterations: {es_iter}"
+                )
         # t + 1 model
         tf.keras.backend.clear_session()
         model.compile(
@@ -217,8 +229,11 @@ def train_nn_models(
             sequence_length,
         )
         if early_stopping and (es_callback.stopped_epoch > 0):
-            model.fit(data_gen, epochs=es_callback.stopped_epoch - es_callback.patience + 1,
-                      verbose=1)
+            model.fit(
+                data_gen,
+                epochs=es_callback.stopped_epoch - es_callback.patience + 1,
+                verbose=1,
+            )
         else:
             model.fit(data_gen, epochs=epochs, verbose=1)
         model.save(
