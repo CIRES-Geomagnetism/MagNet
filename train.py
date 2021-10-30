@@ -18,7 +18,8 @@ def train_nn_models(
     model_definer: Callable[[], Tuple[tf.keras.Model, np.ndarray, int, float, int]],
     num_models: int = 1,
     output_folder: str = "trained_models",
-    data_frequency: str = "minute"
+    data_frequency: str = "minute",
+    early_stopping: bool = False,
 ) -> Optional[List[float]]:
     """Train and save ensemble of models, each trained on a different subset of data.
 
@@ -41,6 +42,11 @@ def train_nn_models(
             output will be ``num_models * 2``.
         output_folder: Path to the directory where models will be saved
         data_frequency: frequency of the training data: "minute" or "hour"
+        early_stopping: If ``True``, stop model training when validation loss stops
+            decreasing. If ``num_models > 1``, use out-of-fold data as the validation
+            set; otherwise randomly select 20% of months. Early stopping is used
+            only on the time ``t`` model, and the resulting optimal number of epochs is
+            used to train the ``t + 1`` model.
 
     Returns:
         out-of-sample accuracy: If ``num_models > 1``, returns list of length
@@ -69,9 +75,15 @@ def train_nn_models(
 
     oos_accuracy = []
     # train on sequences ending at the start of an hour
-    valid_bool = solar['timedelta'].dt.seconds % 3600 == 0
+    valid_bool = solar["timedelta"].dt.seconds % 3600 == 0
     # exclude periods where data contains nans
-    nans_in_train = solar[train_cols].isnull().any(axis=1).rolling(window=sequence_length + 1, center=False).max()
+    nans_in_train = (
+        solar[train_cols]
+        .isnull()
+        .any(axis=1)
+        .rolling(window=sequence_length + 1, center=False)
+        .max()
+    )
     valid_bool = valid_bool & (nans_in_train == 0)
     np.random.seed(0)
     solar["month"] = solar["month"].astype(int)
@@ -79,11 +91,13 @@ def train_nn_models(
     # remove the first week from each period, because not enough data for prediction
     valid_ind_arr = []
     for p in solar["period"].unique():
-        all_p = solar.loc[(solar["period"] == p) & valid_bool].index.values[24 * 7:]
+        all_p = solar.loc[(solar["period"] == p) & valid_bool].index.values[24 * 7 :]
         valid_ind_arr.append(all_p)
     valid_ind = np.concatenate(valid_ind_arr)
     non_exclude_ind = solar.loc[~solar["train_exclude"].astype(bool)].index.values
     np.random.shuffle(months)
+    es_callback = tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=2,
+                                                   restore_best_weights=True)
     for model_ind in range(num_models):
         # t model
         tf.keras.backend.clear_session()
@@ -97,7 +111,7 @@ def train_nn_models(
             # define train and test sets
             leave_out_months = months[
                 model_ind
-                * (len(months) // num_models): (model_ind + 1)
+                * (len(months) // num_models) : (model_ind + 1)
                 * (len(months) // num_models)
             ]
             leave_out_months_ind = solar.loc[
@@ -124,21 +138,68 @@ def train_nn_models(
                 bs,
                 sequence_length,
             )
-            model.fit(train_gen, validation_data=test_gen, epochs=epochs, verbose=1)
+            if early_stopping:
+                model.fit(
+                    train_gen,
+                    validation_data=test_gen,
+                    epochs=100,
+                    verbose=1,
+                    callbacks=[es_callback],
+                )
+            else:
+                model.fit(train_gen, validation_data=test_gen, epochs=epochs, verbose=1)
             oos_accuracy.append(model.evaluate(test_gen, verbose=2)[1])
             print("Out of sample accuracy: ", oos_accuracy)
             print("Out of sample accuracy mean: {}".format(np.mean(oos_accuracy)))
         else:
-            # fit on all data
-            train_ind = valid_ind
-            train_gen = DataGen(
-                solar[train_cols].values,
-                train_ind,
-                solar["target"].values.flatten(),
-                bs,
-                sequence_length,
-            )
-            model.fit(train_gen, epochs=epochs, verbose=1)
+            if early_stopping:
+                leave_out_months = months[
+                    model_ind
+                    * (len(months) // 5) : (model_ind + 1)
+                    * (len(months) // 5)
+                ]
+                leave_out_months_ind = solar.loc[
+                    valid_bool & solar["month"].isin(leave_out_months)
+                ].index.values
+                curr_months_ind = solar.loc[
+                    valid_bool & (~solar["month"].isin(leave_out_months))
+                ].index.values
+                train_ind = np.intersect1d(
+                    np.intersect1d(valid_ind, curr_months_ind), non_exclude_ind
+                )
+                test_ind = np.intersect1d(valid_ind, leave_out_months_ind)
+                train_gen = DataGen(
+                    solar[train_cols].values,
+                    train_ind,
+                    solar["target"].values.flatten(),
+                    bs,
+                    sequence_length,
+                )
+                test_gen = DataGen(
+                    solar[train_cols].values,
+                    test_ind,
+                    solar["target"].values.flatten(),
+                    bs,
+                    sequence_length,
+                )
+                model.fit(
+                    train_gen,
+                    validation_data=test_gen,
+                    epochs=100,
+                    verbose=1,
+                    callbacks=[es_callback],
+                )
+            else:
+                # fit on all data
+                train_ind = valid_ind
+                train_gen = DataGen(
+                    solar[train_cols].values,
+                    train_ind,
+                    solar["target"].values.flatten(),
+                    bs,
+                    sequence_length,
+                )
+                model.fit(train_gen, epochs=epochs, verbose=1)
         model.save(os.path.join(output_folder, "model_t_{}.h5".format(model_ind)))
         # t + 1 model
         tf.keras.backend.clear_session()
@@ -155,7 +216,11 @@ def train_nn_models(
             bs,
             sequence_length,
         )
-        model.fit(data_gen, epochs=epochs, verbose=1)
+        if early_stopping and (es_callback.stopped_epoch > 0):
+            model.fit(data_gen, epochs=es_callback.stopped_epoch - es_callback.patience + 1,
+                      verbose=1)
+        else:
+            model.fit(data_gen, epochs=epochs, verbose=1)
         model.save(
             os.path.join(output_folder, "model_t_plus_one_{}.h5".format(model_ind))
         )
