@@ -3,7 +3,11 @@ import pytest
 import pandas as pd
 import numpy as np
 import os
-from preprocessing import prepare_data_1_min, prepare_data_hourly, combine_old_and_new_data
+from preprocessing import (
+    prepare_data_1_min,
+    prepare_data_hourly,
+    combine_old_and_new_data,
+)
 from predict import predict_batch, predict_one_time
 from train import train_nn_models
 import tensorflow as tf
@@ -22,7 +26,9 @@ def raw_data():
 def prepared_data_1_min(raw_data, tmpdir):
     """Load small dataset and calculate normalization factors."""
     solar_train, sunspots_train, dst_train = raw_data
-    _, _ = prepare_data_1_min(solar_train, sunspots_train, dst_train, output_folder=tmpdir)
+    _, _ = prepare_data_1_min(
+        solar_train, sunspots_train, dst_train, output_folder=tmpdir
+    )
     norm_df = pd.read_csv(os.path.join(tmpdir, "norm_df.csv"), index_col=0)
     return solar_train, sunspots_train, dst_train, norm_df
 
@@ -33,7 +39,9 @@ def prepared_data_hourly(raw_data, tmpdir):
     solar_train, sunspots_train, dst_train = raw_data
     solar_train["timedelta"] = pd.to_timedelta(solar_train["timedelta"])
     solar_train = solar_train.loc[solar_train["timedelta"].dt.seconds % 3600 == 0]
-    _, _ = prepare_data_hourly(solar_train, sunspots_train, dst_train, output_folder=tmpdir)
+    _, _ = prepare_data_hourly(
+        solar_train, sunspots_train, dst_train, output_folder=tmpdir
+    )
     norm_df = pd.read_csv(os.path.join(tmpdir, "norm_df.csv"), index_col=0)
     return solar_train, sunspots_train, dst_train, norm_df
 
@@ -99,7 +107,9 @@ def test_load(simple_models_1_min, prepared_data_1_min, tmpdir):
     # test that predicting with reloaded model give same result
     solar, sunspots, dst, norm_df = prepared_data_1_min
     prediction_times = dst.loc[dst["timedelta"] >= dt.timedelta(days=7)].copy()
-    pred1 = predict_batch(solar, sunspots, prediction_times, [m1], [m2], norm_df, "minute")
+    pred1 = predict_batch(
+        solar, sunspots, prediction_times, [m1], [m2], norm_df, "minute"
+    )
     pred2 = predict_batch(
         solar, sunspots, prediction_times, [m1_new], [m2_new], norm_df, "minute"
     )
@@ -109,9 +119,13 @@ def test_load(simple_models_1_min, prepared_data_1_min, tmpdir):
     )
 
 
-@pytest.mark.parametrize('frequency, prepared_data, model_definer',
-                         [('minute', 'prepared_data_1_min', simple_model_definer_1_min),
-                          ('hour', 'prepared_data_hourly', simple_model_definer_hourly)])
+@pytest.mark.parametrize(
+    "frequency, prepared_data, model_definer",
+    [
+        ("minute", "prepared_data_1_min", simple_model_definer_1_min),
+        ("hour", "prepared_data_hourly", simple_model_definer_hourly),
+    ],
+)
 def test_train(raw_data, prepared_data, model_definer, frequency, request, tmpdir):
     solar, sunspots, dst = raw_data
     train_nn_models(solar, sunspots, dst, model_definer, 1, tmpdir, frequency)
@@ -121,13 +135,17 @@ def test_train(raw_data, prepared_data, model_definer, frequency, request, tmpdi
     # test that predicting with reloaded model gives same result
     solar, sunspots, dst, norm_df = request.getfixturevalue(prepared_data)
     prediction_times = dst.loc[dst["timedelta"] >= dt.timedelta(days=7)].copy()
-    pred = predict_batch(solar, sunspots, prediction_times, [m1], [m2], norm_df, frequency)
+    pred = predict_batch(
+        solar, sunspots, prediction_times, [m1], [m2], norm_df, frequency
+    )
     assert (
         np.isnan(pred[["prediction_t", "prediction_t_plus_1"]].values).sum().sum() == 0
     )
 
 
-@pytest.mark.parametrize('prepared_data', ['prepared_data_1_min', 'prepared_data_hourly'])
+@pytest.mark.parametrize(
+    "prepared_data", ["prepared_data_1_min", "prepared_data_hourly"]
+)
 def test_no_nulls_in_prepared_data(prepared_data, request, tmpdir):
     """Test that output of prepare_data contains no nulls in training or target
     columns."""
@@ -136,10 +154,16 @@ def test_no_nulls_in_prepared_data(prepared_data, request, tmpdir):
     assert df[train_cols + ["target", "target_shift"]].notnull().all().all()
 
 
-@pytest.mark.parametrize('frequency, prepared_data, simple_models',
-                         [('minute', 'prepared_data_1_min', 'simple_models_1_min'),
-                          ('hour', 'prepared_data_hourly', 'simple_models_hourly')])
-def test_predict_one_time_vs_predict_batch(prepared_data, simple_models, frequency, request):
+@pytest.mark.parametrize(
+    "frequency, prepared_data, simple_models",
+    [
+        ("minute", "prepared_data_1_min", "simple_models_1_min"),
+        ("hour", "prepared_data_hourly", "simple_models_hourly"),
+    ],
+)
+def test_predict_one_time_vs_predict_batch(
+    prepared_data, simple_models, frequency, request
+):
     """Test that predict_one_time and predict_batch give same result if
     there is no missing data."""
     solar, sunspots, dst, norm_df = request.getfixturevalue(prepared_data)
@@ -175,7 +199,12 @@ def test_predict_one_time_vs_predict_batch(prepared_data, simple_models, frequen
             "smoothed_ssn",
         ].values[-1]
         pred_t, pred_t_plus_1 = predict_one_time(
-            solar_wind_7d, latest_sunspot_number, [model], [model_plus_one], norm_df, frequency
+            solar_wind_7d,
+            latest_sunspot_number,
+            [model],
+            [model_plus_one],
+            norm_df,
+            frequency,
         )
         one_time_predictions.loc[i, ["prediction_t", "prediction_t_plus_1"]] = [
             pred_t,
@@ -192,9 +221,15 @@ def test_predict_one_time_vs_predict_batch(prepared_data, simple_models, frequen
 def test_combine_data():
     ind = pd.to_timedelta(np.arange(24 * 60), unit="minute")
     data = np.arange(24 * 60)
-    new_data = pd.DataFrame({'timedelta': ind, 'data': data})
+    new_data = pd.DataFrame({"timedelta": ind, "data": data})
     new_data["period"] = "a"
+    new_data["source"] = "b"
     old_data = pd.DataFrame()
     comb_data = combine_old_and_new_data(old_data, new_data)
-    assert comb_data.loc[dt.timedelta(seconds=3600), "data"] == np.mean(data[:60])
-    assert comb_data.loc[dt.timedelta(seconds=3600 * 24), "data"] == np.mean(data[-60:])
+    assert np.all(comb_data.columns.values == new_data.columns.values)
+    assert comb_data.loc[
+        comb_data["timedelta"] == dt.timedelta(seconds=3600), "data"
+    ].values[0] == np.mean(data[:60])
+    assert comb_data.loc[
+        comb_data["timedelta"] == dt.timedelta(seconds=3600 * 24), "data"
+    ].values[0] == np.mean(data[-60:])

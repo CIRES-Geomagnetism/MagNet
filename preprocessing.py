@@ -115,10 +115,9 @@ def prepare_data_1_min(
         solar.loc[curr_period, train_short] = solar.loc[
             curr_period, train_short
         ].fillna(roll)
-        solar.loc[curr_period, train_short] = (
-            solar.loc[curr_period, train_short]
-            .fillna(solar.loc[curr_period, train_short].mean(), axis=0)
-        )
+        solar.loc[curr_period, train_short] = solar.loc[
+            curr_period, train_short
+        ].fillna(solar.loc[curr_period, train_short].mean(), axis=0)
 
     # normalize data using median and inter-quartile range
     if norm_df is None:
@@ -207,7 +206,9 @@ def prepare_data_hourly(
     solar["timedelta"] = pd.to_timedelta(solar["timedelta"])
 
     # calculate bt
-    solar["bt"] = np.sqrt(solar["bx_gse"] ** 2 + solar["by_gse"] ** 2 + solar["bz_gse"] ** 2)
+    solar["bt"] = np.sqrt(
+        solar["bx_gse"] ** 2 + solar["by_gse"] ** 2 + solar["bz_gse"] ** 2
+    )
 
     # merge data
     solar["days"] = solar["timedelta"].dt.days
@@ -273,10 +274,9 @@ def prepare_data_hourly(
         solar.loc[curr_period, train_short] = solar.loc[
             curr_period, train_short
         ].fillna(roll)
-        solar.loc[curr_period, train_short] = (
-            solar.loc[curr_period, train_short]
-            .fillna(solar.loc[curr_period, train_short].mean(), axis=0)
-        )
+        solar.loc[curr_period, train_short] = solar.loc[
+            curr_period, train_short
+        ].fillna(solar.loc[curr_period, train_short].mean(), axis=0)
 
     # normalize data using median and inter-quartile range
     if norm_df is None:
@@ -392,7 +392,9 @@ class DataGen(tf.keras.utils.Sequence):
             np.random.shuffle(self.valid_inds)
 
 
-def combine_old_and_new_data(old_data: pd.DataFrame, new_data: pd.DataFrame) -> pd.DataFrame:
+def combine_old_and_new_data(
+    old_data: pd.DataFrame, new_data: pd.DataFrame
+) -> pd.DataFrame:
     """Combine old data at hourly frequency with new data at 1-minute frequency.
     Adjust for different satellite position.
 
@@ -409,11 +411,29 @@ def combine_old_and_new_data(old_data: pd.DataFrame, new_data: pd.DataFrame) -> 
     # 1-minute data between t and t + 59 minutes inclusive.
     # Then shift the data 1 hour forward (data labelled 10:00 is now labelled 11:00).
     new_hourly_arr = []
+    new_data["timedelta"] = pd.to_timedelta(new_data["timedelta"])
+    if len(old_data) > 0:
+        old_data["timedelta"] = pd.to_timedelta(old_data["timedelta"])
     for p in new_data["period"].unique():
         period_data = new_data.loc[new_data["period"] == p].copy()
-        period_data_hourly = period_data.resample("1H", closed="left", label="right",
-                                                  on="timedelta", offset="1H").mean()
+        period_data_hourly = period_data.resample(
+            "1H", closed="left", label="right", on="timedelta", offset="1H"
+        ).mean()
+        # restore non-numeric columns
+        num_num_cols = ["period", "source", "timedelta"]
+        period_data_hourly_non_num = (
+            period_data[num_num_cols]
+            .resample("1H", closed="left", label="right", on="timedelta", offset="1H")
+            .first()
+        )
+        # drop the timedelta column, since the correct timedelta is now the index
+        period_data_hourly_non_num.drop("timedelta", inplace=True, axis=1)
+        period_data_hourly = pd.concat(
+            [period_data_hourly, period_data_hourly_non_num], axis=1
+        )
+        period_data_hourly.reset_index(inplace=True)
         new_hourly_arr.append(period_data_hourly)
-    new_hourly = pd.concat(new_hourly_arr, axis=0)
-    comb_data = pd.concat([new_hourly, old_data])
+
+    new_hourly = pd.concat(new_hourly_arr, axis=0, ignore_index=True)
+    comb_data = pd.concat([new_hourly, old_data], axis=0, ignore_index=True)
     return comb_data
