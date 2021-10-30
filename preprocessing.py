@@ -390,3 +390,30 @@ class DataGen(tf.keras.utils.Sequence):
         """Code to run at the end of each training epoch."""
         if self.shuffle:
             np.random.shuffle(self.valid_inds)
+
+
+def combine_old_and_new_data(old_data: pd.DataFrame, new_data: pd.DataFrame) -> pd.DataFrame:
+    """Combine old data at hourly frequency with new data at 1-minute frequency.
+    Adjust for different satellite position.
+
+    Args:
+        old_data: solar wind data at hourly frequency, measured at bow-shock-nose
+        new_data: solar wind data at 1-minute frequency, measured at L1 position
+
+    Returns:
+        comb_data: combined data at 1-minute frequency, adjusted to equivalent of
+            bow-shock-nose position
+    """
+
+    # Average 1-minute data so that the result at time t hours is the average of the
+    # 1-minute data between t and t + 59 minutes inclusive.
+    # Then shift the data 1 hour forward (data labelled 10:00 is now labelled 11:00).
+    new_hourly_arr = []
+    for p in new_data["period"].unique():
+        period_data = new_data.loc[new_data["period"] == p].copy()
+        period_data_hourly = period_data.resample("1H", closed="left", label="right",
+                                                  on="timedelta", offset="1H").mean()
+        new_hourly_arr.append(period_data_hourly)
+    new_hourly = pd.concat(new_hourly_arr, axis=0)
+    comb_data = pd.concat([new_hourly, old_data])
+    return comb_data

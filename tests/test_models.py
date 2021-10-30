@@ -3,7 +3,7 @@ import pytest
 import pandas as pd
 import numpy as np
 import os
-from preprocessing import prepare_data_1_min, prepare_data_hourly
+from preprocessing import prepare_data_1_min, prepare_data_hourly, combine_old_and_new_data
 from predict import predict_batch, predict_one_time
 from train import train_nn_models
 import tensorflow as tf
@@ -187,3 +187,14 @@ def test_predict_one_time_vs_predict_batch(prepared_data, simple_models, frequen
         atol=1e-3,
         rtol=1e-3,
     )
+
+
+def test_combine_data():
+    ind = pd.to_timedelta(np.arange(24 * 60), unit="minute")
+    data = np.arange(24 * 60)
+    new_data = pd.DataFrame({'timedelta': ind, 'data': data})
+    new_data["period"] = "a"
+    old_data = pd.DataFrame()
+    comb_data = combine_old_and_new_data(old_data, new_data)
+    assert comb_data.loc[dt.timedelta(seconds=3600), "data"] == np.mean(data[:60])
+    assert comb_data.loc[dt.timedelta(seconds=3600 * 24), "data"] == np.mean(data[-60:])
