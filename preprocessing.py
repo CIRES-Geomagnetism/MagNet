@@ -14,6 +14,7 @@ def prepare_data_1_min(
     dst: pd.DataFrame = None,
     norm_df=None,
     output_folder: str = None,
+    coord_system: str = "gsm"
 ) -> Tuple[pd.DataFrame, List[str]]:
     """
     Prepare data for training or prediction.
@@ -30,7 +31,7 @@ def prepare_data_1_min(
 
     This method modifies the input dataframes ``solar``, ``sunspots``, and ``dst``; if
     you want to keep the original dataframes, pass copies, e.g.
-    ``prepare_data(solar.copy(), sunspots.copy(), dst.copy())``.
+    ``prepare_data_1_min(solar.copy(), sunspots.copy(), dst.copy())``.
 
     Args:
         solar: DataFrame containing solar wind data. This function uses the GSM
@@ -43,10 +44,12 @@ def prepare_data_1_min(
         norm_df: ``None``, or DataFrame containing the normalization scaling factors to
             apply
         output_folder: Path to the directory where normalisation dataframe will be saved
+        coord_system: either "gsm" or "gse"
 
 
     Returns:
-        DataFrame containing processed data and labels
+        solar: DataFrame containing processed data and labels
+        train_cols: list of training columns
     """
 
     # convert timedelta
@@ -88,15 +91,28 @@ def prepare_data_1_min(
     # fill missing data
     if "month" in solar.columns:
         solar["month"] = solar["month"].fillna(method="ffill")
-    train_cols = [
-        "bt",
-        "density",
-        "speed",
-        "bx_gsm",
-        "by_gsm",
-        "bz_gsm",
-        "smoothed_ssn",
-    ]
+    if coord_system == "gsm":
+        train_cols = [
+            "bt",
+            "density",
+            "speed",
+            "bx_gsm",
+            "by_gsm",
+            "bz_gsm",
+            "smoothed_ssn",
+        ]
+    elif coord_system == "gse":
+        train_cols = [
+            "bt",
+            "density",
+            "speed",
+            "bx_gse",
+            "by_gse",
+            "bz_gse",
+            "smoothed_ssn",
+        ]
+    else:
+        raise ValueError(f"Invalid coord system {coord_system}")
     train_short = [c for c in train_cols if c != "smoothed_ssn"]
     for p in solar["period"].unique():
         curr_period = solar["period"] == p
@@ -125,7 +141,8 @@ def prepare_data_1_min(
         norm_df["lq"] = solar[train_cols].quantile(0.25)
         norm_df["uq"] = solar[train_cols].quantile(0.75)
         norm_df["iqr"] = norm_df["uq"] - norm_df["lq"]
-        norm_df.to_csv(os.path.join(output_folder, "norm_df.csv"))
+    if output_folder is not None:
+            norm_df.to_csv(os.path.join(output_folder, "norm_df.csv"))
     solar[train_cols] = (solar[train_cols] - norm_df["median"]) / norm_df["iqr"]
 
     if dst is not None:
@@ -183,7 +200,7 @@ def prepare_data_hourly(
 
     This method modifies the input dataframes ``solar``, ``sunspots``, and ``dst``; if
     you want to keep the original dataframes, pass copies, e.g.
-    ``prepare_data(solar.copy(), sunspots.copy(), dst.copy())``.
+    ``prepare_data_hourly(solar.copy(), sunspots.copy(), dst.copy())``.
 
     Args:
         solar: DataFrame containing solar wind data. This function uses the GSE
@@ -199,7 +216,8 @@ def prepare_data_hourly(
 
 
     Returns:
-        DataFrame containing processed data and labels
+        solar: DataFrame containing processed data and labels
+        train_cols: list of training columns
     """
 
     # convert timedelta
@@ -284,6 +302,7 @@ def prepare_data_hourly(
         norm_df["lq"] = solar[train_cols].quantile(0.25)
         norm_df["uq"] = solar[train_cols].quantile(0.75)
         norm_df["iqr"] = norm_df["uq"] - norm_df["lq"]
+    if output_folder is not None:
         norm_df.to_csv(os.path.join(output_folder, "norm_df.csv"))
     solar[train_cols] = (solar[train_cols] - norm_df["median"]) / norm_df["iqr"]
 
@@ -296,10 +315,93 @@ def prepare_data_hourly(
         solar["target_shift"] = solar["target"].shift(-1)
         solar["target_shift"] = solar["target_shift"].fillna(method="ffill")
 
-    train_cols = ["density", "speed", "bx_gse", "by_gse", "bz_gse", "smoothed_ssn"]
+    train_cols = ["density", "speed", "bx_gse", "by_gse", "bz_gse", "bt", "smoothed_ssn"]
     solar[train_cols] = solar[train_cols].astype(float)
 
     return solar, train_cols
+
+
+def prepare_data_hybrid(
+    solar_1_min: pd.DataFrame,
+    solar_hourly: Optional[pd.DataFrame],
+    sunspots: Union[pd.DataFrame, float],
+    dst: pd.DataFrame = None,
+    norm_df=None,
+    output_folder: str = None,
+    output_folder_hourly: str = None
+) -> Union[Tuple[pd.DataFrame, pd.DataFrame, List[str], List[str]],
+           Tuple[pd.DataFrame, List[str]]]:
+    """
+    Prepare data for training or prediction. Returns both hourly and 1-minute data.
+    In the hourly data, the features ``bx_gse_mean``, ``by_gse_mean``, ``bz_gse_mean``
+    ``bt``, ``speed``, and ``density`` are normalised using the same normalisation
+    factors as the 1-minute data. This means the 1-minute data can be used in a
+    module trained on the hourly data.
+
+    If ``dst`` is ``None``, prepare dataframe of feature variables only for prediction
+    using previously-calculated normalization scaling factors in ``norm_df``.
+    If ``dst`` is not ``None``, prepare dataframe of feature variables and labels for
+    model training. Calculate normalization scaling factors and
+    save in ``output_folder``. In this case ``output_folder`` must not be ``None``.
+
+    Normalize the training data and save the scaling parameters in a dataframe (these
+    are needed to transform data for prediction).
+
+    This method modifies the input dataframes ``solar_hourly``, ``solar``, ``sunspots``,
+    and ``dst``; if you want to keep the original dataframes, pass copies, e.g.
+    ``prepare_data_hybrid(solar.copy(), sunspots.copy(), dst.copy())``.
+
+    Args:
+        solar_1_min: DataFrame containing solar wind data at 1-minute frequency. This
+            function uses the GSE co-ordinates.
+        solar_hourly: DataFrame containing solar wind data at hourly frequency. This
+            can contain data from the same time period as solar_1_min. If None,
+            only return the 1-minute data, but order the columns correctly for using
+            the hybrid model.
+        sunspots: DataFrame containing sunspots data, or float. If dataframe, will be
+            merged with solar data using timestamp. If float, all rows of output data
+            will use this number.
+        dst: ``None``, or DataFrame containing the disturbance storm time (DST) data,
+        i.e. the labels for training
+        norm_df: ``None``, or DataFrame containing the normalization scaling factors to
+            apply
+        output_folder: Path to the directory where normalisation dataframe for 1-minute
+            data will be saved
+        output_folder_hourly: Path to the directory where normalisation dataframe for 1-minute
+            data will be saved
+
+    Returns:
+        solar_1_min, solar_hourly, train_cols_1_min, train_cols_hourly: if `
+            `solar_hourly`` is not None
+        solar_1_min, train_cols_1_min: if ``solar_hourly`` is None
+    """
+
+    # prepare 1-minute data
+    solar_1_min, train_cols_1_min = prepare_data_1_min(
+        solar_1_min, sunspots, dst, output_folder=output_folder, norm_df=norm_df,
+        coord_system="gse"
+    )
+
+    common_columns = ['bx_gse_mean', 'by_gse_mean', 'bz_gse_mean', 'bt_mean',
+                      'density_mean', 'speed_mean', 'smoothed_ssn']
+    common_columns_no_suffix = [c.replace("_mean", "") for c in common_columns]
+    if solar_hourly is not None:
+        # prepare hourly data, using same normalisation factors
+        norm_df = pd.read_csv(os.path.join(output_folder, "norm_df.csv"), index_col=0)
+        norm_df = norm_df.loc[common_columns_no_suffix]
+        solar_hourly, train_cols_hourly = prepare_data_hourly(
+            solar_hourly, sunspots, dst, output_folder=output_folder_hourly, norm_df=norm_df
+        )
+
+    # sort columns so that common columns occur in same order in 1-minute and
+    # hourly data
+    minute_ordered = common_columns + [c for c in train_cols_1_min if c not in common_columns]
+    hour_ordered = common_columns_no_suffix
+
+    if solar_hourly is None:
+        return solar_1_min, minute_ordered
+    else:
+        return solar_1_min, solar_hourly, minute_ordered, hour_ordered
 
 
 class DataGen(tf.keras.utils.Sequence):

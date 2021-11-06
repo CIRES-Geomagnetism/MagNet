@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 import tensorflow as tf
 
-from preprocessing import DataGen, prepare_data_1_min, prepare_data_hourly
+from preprocessing import DataGen, prepare_data_1_min, prepare_data_hourly, prepare_data_hybrid
 
 
 def load_models(
@@ -99,7 +99,7 @@ def predict_batch(
     model_t_arr: List[tf.keras.Model],
     model_t_plus_one_arr: List[tf.keras.Model],
     norm_df: pd.DataFrame,
-    frequency: str
+    frequency: str,
 ) -> pd.DataFrame:
     """
     Make predictions for multiple times; faster than ``predict_one_time``.
@@ -119,7 +119,7 @@ def predict_batch(
         model_t_arr: List of models for time ``t``
         model_t_plus_one_arr: List of models for time ``(t + 1)``
         norm_df: Scaling factors to normalize the data
-        frequency: frequency of the model, "minute" or "hour"
+        frequency: frequency of the model, "minute", "hour" or "hybrid"
 
     Returns:
         predictions: DataFrame with columns ``timedelta``, ``period``, ``prediction_t``
@@ -131,7 +131,7 @@ def predict_batch(
     diff = solar["timedelta"].diff()
     diff.loc[solar["period"] != solar["period"].shift()] = np.nan
     valid_diff = solar["period"] == solar["period"].shift(1)
-    if (frequency == "minute") and np.any(diff.loc[valid_diff] != dt.timedelta(minutes=1)):
+    if (frequency in ["minute", "hybrid"]) and np.any(diff.loc[valid_diff] != dt.timedelta(minutes=1)):
         raise ValueError(
             "Input data must be sorted by period and time and have 1-minute frequency."
         )
@@ -150,9 +150,14 @@ def predict_batch(
     # prepare data
     if frequency == "minute":
         solar, train_cols = prepare_data_1_min(solar.copy(), sunspots.copy(), norm_df=norm_df)
-    else:
+    elif frequency == "hour":
         solar, train_cols = prepare_data_hourly(solar.copy(), sunspots.copy(),
                                                norm_df=norm_df)
+    elif frequency == "hybrid":
+        solar, train_cols = prepare_data_hybrid(solar.copy(), None, sunspots.copy(),
+                                                      norm_df=norm_df)
+    else:
+        raise ValueError(f"Invalid frequency {frequency}")
 
     # check there is 1 week of data before each valid time
     min_data_by_period = solar.groupby("period")["timedelta"].min().to_frame("min_time")
@@ -174,7 +179,7 @@ def predict_batch(
     # make prediction
     predictions = pd.DataFrame(prediction_times[["timedelta", "period"]].copy())
     valid_ind = solar.loc[solar["valid_ind"]].index.values
-    sequence_length = 24 * 6 * 7 if (frequency == "minute") else 24 * 7
+    sequence_length = 24 * 6 * 7 if (frequency in ["minute", "hybrid"]) else 24 * 7
     datagen = DataGen(
         solar[train_cols].values,
         valid_ind,
