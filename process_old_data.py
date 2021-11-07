@@ -26,6 +26,10 @@ hours = np.round((solar["Decimal year"] - year) * hours_in_year, 0)
 solar["timestamp"] = year_timestamp + pd.to_timedelta(hours, unit="hour")
 solar["timedelta"] = solar["timestamp"] - solar["timestamp"].min()
 
+# fill missing values with nan
+for c in solar.columns:
+    solar.loc[solar[c] == 999.9, c] = np.nan
+
 # add gsm coords
 old_coords = coords.Coords(solar[["bx_gse", "by_gse", "bz_gse"]].values, "GSE", "car")
 unix_time = (solar["timestamp"] - dt.datetime(1970, 1, 1)).dt.total_seconds()
@@ -33,6 +37,7 @@ old_coords.ticks = Ticktock(unix_time.values, "UNX")
 new_coords = old_coords.convert("GSM", "car")
 solar[["bx_gsm", "by_gsm", "bz_gsm"]] = new_coords.data
 
+# rename columns and save
 solar.rename(columns={"Dst": "dst", "source_imf": "source"}, inplace=True)
 output_cols = [
     "period",
@@ -40,6 +45,9 @@ output_cols = [
     "bx_gse",
     "by_gse",
     "bz_gse",
+    "bx_gsm",
+    "by_gsm",
+    "bz_gsm",
     "density",
     "speed",
     "source",
@@ -51,9 +59,6 @@ solar[["period", "timedelta", "dst"]].to_csv(
     os.path.join("data", "old", "dst_labels.csv")
 )
 
-# fill missing values with nan
-for c in solar.columns:
-    solar.loc[solar[c] == 999.9, c] = np.nan
 
 # process sunspot data, from Royal Observatory of Belgium
 # https://wwwbis.sidc.be/silso/datafiles#total
