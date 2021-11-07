@@ -138,7 +138,7 @@ def define_model_cnn_hybrid() -> Tuple[
     )(hourly_conv1)
     hourly_trim1 = tf.keras.layers.Cropping1D((1, 0), name="hourly_trim1")(hourly_conv2)
     hourly_conv3 = tf.keras.layers.Conv1D(
-        50, kernel_size=6, strides=3, activation="relu", name="hourly_conv3"
+        30, kernel_size=6, strides=3, activation="relu", name="hourly_conv3"
     )(hourly_trim1)
     hourly_trim2 = tf.keras.layers.Cropping1D((2, 0), name="hourly_trim2")(hourly_conv3)
 
