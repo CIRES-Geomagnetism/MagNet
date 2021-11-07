@@ -131,29 +131,29 @@ def define_model_cnn_hybrid() -> Tuple[
         hour_padded_inputs
     )
     hourly_conv1 = tf.keras.layers.Conv1D(
-        50, kernel_size=1, strides=1, activation="relu", name="hourly_conv1"
+        128, kernel_size=1, strides=1, activation="relu", name="hourly_conv1"
     )(hourly_avg)
     hourly_conv2 = tf.keras.layers.Conv1D(
-        50, kernel_size=6, strides=3, activation="relu", name="hourly_conv2"
+        64, kernel_size=6, strides=3, activation="relu", name="hourly_conv2"
     )(hourly_conv1)
     hourly_trim1 = tf.keras.layers.Cropping1D((1, 0), name="hourly_trim1")(hourly_conv2)
     hourly_conv3 = tf.keras.layers.Conv1D(
-        30, kernel_size=6, strides=3, activation="relu", name="hourly_conv3"
+        32, kernel_size=6, strides=3, activation="relu", name="hourly_conv3"
     )(hourly_trim1)
     hourly_trim2 = tf.keras.layers.Cropping1D((2, 0), name="hourly_trim2")(hourly_conv3)
 
     # high-frequency part
     minute_conv1 = tf.keras.layers.Conv1D(
-        50,
+        256,
         kernel_size=6,
         strides=1,
         activation="relu",
-        padding="causal",
+        padding="same",
         name="minute_conv1",
     )(inputs)
     # minute_conv2 has output size 168 = 24 * 7, so each output represents an hour
     minute_conv2 = tf.keras.layers.Conv1D(
-        50,
+        128,
         kernel_size=6,
         strides=6,
         activation="relu",
@@ -166,24 +166,24 @@ def define_model_cnn_hybrid() -> Tuple[
         [minute_conv2, hourly_conv1]
     )
     minute_conv3 = tf.keras.layers.Conv1D(
-        50, kernel_size=6, strides=3, activation="relu", name="minute_conv3"
+        64, kernel_size=6, strides=3, activation="relu", name="minute_conv3"
     )(minute_concat1)
     minute_trim1 = tf.keras.layers.Cropping1D((1, 0), name="minute_trim1")(minute_conv3)
     minute_concat2 = tf.keras.layers.Concatenate(name="minute_concat2")(
         [minute_trim1, hourly_trim1]
     )
     minute_conv4 = tf.keras.layers.Conv1D(
-        50, kernel_size=6, strides=3, activation="relu", name="minute_conv4"
+       32, kernel_size=6, strides=3, activation="relu", name="minute_conv4"
     )(minute_concat2)
     minute_trim2 = tf.keras.layers.Cropping1D((2, 0), name="minute_trim2")(minute_conv4)
     minute_concat3 = tf.keras.layers.Concatenate(name="minute_concat3")(
         [minute_trim2, hourly_trim2]
     )
     minute_conv5 = tf.keras.layers.Conv1D(
-        30, kernel_size=6, strides=3, activation="relu", name="minute_conv5"
+        16, kernel_size=6, strides=3, activation="relu", name="minute_conv5"
     )(minute_concat3)
     minute_conv6 = tf.keras.layers.Conv1D(
-        30, kernel_size=4, strides=4, activation="relu", name="minute_conv6"
+        8, kernel_size=4, strides=4, activation="relu", name="minute_conv6"
     )(minute_conv5)
     # extract last data point of previous convolutional layers (left-crop all but one)
     minute_comb1 = tf.keras.layers.Concatenate(axis=2, name="minute_comb1")(
@@ -195,7 +195,7 @@ def define_model_cnn_hybrid() -> Tuple[
             tf.keras.layers.Cropping1D((3, 0))(minute_conv5),
         ]
     )
-    minute_dense = tf.keras.layers.Dense(50, activation="relu", name="minute_dense")(
+    minute_dense = tf.keras.layers.Dense(256, activation="relu", name="minute_dense")(
         minute_comb1
     )
     output = tf.keras.layers.Flatten()(tf.keras.layers.Dense(1)(minute_dense))
@@ -218,10 +218,10 @@ def define_model_cnn_hybrid() -> Tuple[
             x = tensor_dict[layer.name]
     # add some more convolutions
     hourly_conv4 = tf.keras.layers.Conv1D(
-        30, kernel_size=6, strides=3, activation="relu", name="hourly_conv4"
+        16, kernel_size=6, strides=3, activation="relu", name="hourly_conv4"
     )(tensor_dict["hourly_trim2"])
     hourly_conv5 = tf.keras.layers.Conv1D(
-        30, kernel_size=3, strides=3, activation="relu", name="hourly_conv5"
+        8, kernel_size=3, strides=3, activation="relu", name="hourly_conv5"
     )(hourly_conv4)
     # extract last data point of previous convolutional layers (left-crop all but one)
     hourly_comb1 = tf.keras.layers.Concatenate(axis=2)(
@@ -233,7 +233,7 @@ def define_model_cnn_hybrid() -> Tuple[
             tf.keras.layers.Cropping1D((3, 0))(hourly_conv4),
         ]
     )
-    hourly_dense = tf.keras.layers.Dense(50, activation="relu", name="hour8")(
+    hourly_dense = tf.keras.layers.Dense(256, activation="relu", name="hour8")(
         hourly_comb1
     )
     hour_output = tf.keras.layers.Flatten()(tf.keras.layers.Dense(1)(hourly_dense))
