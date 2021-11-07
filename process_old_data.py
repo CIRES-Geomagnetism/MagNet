@@ -3,6 +3,9 @@
 import os
 import numpy as np
 import pandas as pd
+from spacepy import coordinates as coords
+from spacepy.time import Ticktock
+import datetime as dt
 
 # process solar wind data
 solar = pd.read_csv(
@@ -22,6 +25,14 @@ hours_in_year = (year_plus_one_timestamp - year_timestamp).dt.total_seconds() //
 hours = np.round((solar["Decimal year"] - year) * hours_in_year, 0)
 solar["timestamp"] = year_timestamp + pd.to_timedelta(hours, unit="hour")
 solar["timedelta"] = solar["timestamp"] - solar["timestamp"].min()
+
+# add gsm coords
+old_coords = coords.Coords(solar[["bx_gse", "by_gse", "bz_gse"]].values, "GSE", "car")
+unix_time = (solar["timestamp"] - dt.datetime(1970, 1, 1)).dt.total_seconds()
+old_coords.ticks = Ticktock(unix_time.values, "UNX")
+new_coords = old_coords.convert("GSM", "car")
+solar[["bx_gsm", "by_gsm", "bz_gsm"]] = new_coords.data
+
 solar.rename(columns={"Dst": "dst", "source_imf": "source"}, inplace=True)
 output_cols = [
     "period",
