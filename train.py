@@ -1,6 +1,6 @@
 import os
 from typing import Callable, List, Optional, Tuple, Union
-
+import random
 import inspect
 import pandas as pd
 import numpy as np
@@ -62,6 +62,11 @@ def train_on_prepared_data(
         sequence_length = 6 * 24 * 7
     else:
         sequence_length = 24 * 7
+
+    # set seeds
+    np.random.seed(0)
+    random.seed(0)
+    tf.random.set_seed(0)
 
     oos_accuracy = []
     # train on sequences ending at the start of an hour
