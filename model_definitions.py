@@ -125,37 +125,41 @@ def define_model_cnn_hybrid() -> Tuple[
     inputs = tf.keras.layers.Input((24 * 7 * 6, 13))
     # hourly part
     hour_padded_inputs = inputs[:, :, :7]
-    # dim 1 has length 24 * 6 * 7, but values are repeated in blocks of 6, so use
-    # average pooling to condense to size 24 * 7
+    # dim 1 has length 24 * 6 * 7, so use average pooling to condense to size 24 * 7
+    # in the result, the value for each hour is the average of the minutes of the
+    # previous hour. This is equivalent to what's done in
+    # preprocessing.combine_old_and_new_data
     hourly_avg = tf.keras.layers.AveragePooling1D(pool_size=6, strides=6)(
         hour_padded_inputs
     )
     hourly_conv1 = tf.keras.layers.Conv1D(
-        128, kernel_size=1, strides=1, activation="relu", name="hourly_conv1"
+        50, kernel_size=1, strides=1, activation="relu", name="hourly_conv1"
     )(hourly_avg)
     hourly_conv2 = tf.keras.layers.Conv1D(
-        64, kernel_size=6, strides=3, activation="relu", name="hourly_conv2"
+        50, kernel_size=6, strides=3, activation="relu", name="hourly_conv2"
     )(hourly_conv1)
     hourly_trim1 = tf.keras.layers.Cropping1D((1, 0), name="hourly_trim1")(hourly_conv2)
     hourly_conv3 = tf.keras.layers.Conv1D(
-        32, kernel_size=6, strides=3, activation="relu", name="hourly_conv3"
+        30, kernel_size=6, strides=3, activation="relu", name="hourly_conv3"
     )(hourly_trim1)
     hourly_trim2 = tf.keras.layers.Cropping1D((2, 0), name="hourly_trim2")(hourly_conv3)
-
+    hourly_conv4 = tf.keras.layers.Conv1D(
+        30, kernel_size=6, strides=3, activation="relu", name="hourly_conv4"
+    )(hourly_trim2)
     # high-frequency part
     minute_conv1 = tf.keras.layers.Conv1D(
-        256,
+        50,
         kernel_size=6,
-        strides=1,
+        strides=3,
         activation="relu",
-        padding="same",
+        padding="causal",
         name="minute_conv1",
     )(inputs)
     # minute_conv2 has output size 168 = 24 * 7, so each output represents an hour
     minute_conv2 = tf.keras.layers.Conv1D(
-        128,
+        50,
         kernel_size=6,
-        strides=6,
+        strides=2,
         activation="relu",
         padding="causal",
         name="minute_conv2",
@@ -166,36 +170,38 @@ def define_model_cnn_hybrid() -> Tuple[
         [minute_conv2, hourly_conv1]
     )
     minute_conv3 = tf.keras.layers.Conv1D(
-        64, kernel_size=6, strides=3, activation="relu", name="minute_conv3"
+        50, kernel_size=6, strides=3, activation="relu", name="minute_conv3"
     )(minute_concat1)
     minute_trim1 = tf.keras.layers.Cropping1D((1, 0), name="minute_trim1")(minute_conv3)
     minute_concat2 = tf.keras.layers.Concatenate(name="minute_concat2")(
         [minute_trim1, hourly_trim1]
     )
     minute_conv4 = tf.keras.layers.Conv1D(
-       32, kernel_size=6, strides=3, activation="relu", name="minute_conv4"
+       50, kernel_size=6, strides=3, activation="relu", name="minute_conv4"
     )(minute_concat2)
     minute_trim2 = tf.keras.layers.Cropping1D((2, 0), name="minute_trim2")(minute_conv4)
     minute_concat3 = tf.keras.layers.Concatenate(name="minute_concat3")(
         [minute_trim2, hourly_trim2]
     )
     minute_conv5 = tf.keras.layers.Conv1D(
-        16, kernel_size=6, strides=3, activation="relu", name="minute_conv5"
+        30, kernel_size=6, strides=3, activation="relu", name="minute_conv5"
     )(minute_concat3)
+    minute_concat4 = tf.keras.layers.Concatenate(name="minute_concat4")([minute_conv5, hourly_conv4])
     minute_conv6 = tf.keras.layers.Conv1D(
-        8, kernel_size=4, strides=4, activation="relu", name="minute_conv6"
-    )(minute_conv5)
+        30, kernel_size=4, strides=4, activation="relu", name="minute_conv6"
+    )(minute_concat4)
     # extract last data point of previous convolutional layers (left-crop all but one)
     minute_comb1 = tf.keras.layers.Concatenate(axis=2, name="minute_comb1")(
         [
             minute_conv6,
+            tf.keras.layers.Cropping1D((335, 0))(minute_conv1),
             tf.keras.layers.Cropping1D((167, 0))(minute_conv2),
             tf.keras.layers.Cropping1D((54, 0))(minute_conv3),
             tf.keras.layers.Cropping1D((16, 0))(minute_conv4),
             tf.keras.layers.Cropping1D((3, 0))(minute_conv5),
         ]
     )
-    minute_dense = tf.keras.layers.Dense(256, activation="relu", name="minute_dense")(
+    minute_dense = tf.keras.layers.Dense(50, activation="relu", name="minute_dense")(
         minute_comb1
     )
     output = tf.keras.layers.Flatten()(tf.keras.layers.Dense(1)(minute_dense))
@@ -217,12 +223,9 @@ def define_model_cnn_hybrid() -> Tuple[
             tensor_dict[layer.name] = type(layer).from_config(config)(x)
             x = tensor_dict[layer.name]
     # add some more convolutions
-    hourly_conv4 = tf.keras.layers.Conv1D(
-        16, kernel_size=6, strides=3, activation="relu", name="hourly_conv4"
-    )(tensor_dict["hourly_trim2"])
     hourly_conv5 = tf.keras.layers.Conv1D(
-        8, kernel_size=3, strides=3, activation="relu", name="hourly_conv5"
-    )(hourly_conv4)
+        30, kernel_size=4, strides=4, activation="relu", name="hourly_conv5"
+    )(tensor_dict["hourly_conv4"])
     # extract last data point of previous convolutional layers (left-crop all but one)
     hourly_comb1 = tf.keras.layers.Concatenate(axis=2)(
         [
@@ -230,10 +233,10 @@ def define_model_cnn_hybrid() -> Tuple[
             tf.keras.layers.Cropping1D((167, 0))(tensor_dict["hourly_conv1"]),
             tf.keras.layers.Cropping1D((54, 0))(tensor_dict["hourly_conv2"]),
             tf.keras.layers.Cropping1D((16, 0))(tensor_dict["hourly_conv3"]),
-            tf.keras.layers.Cropping1D((3, 0))(hourly_conv4),
+            tf.keras.layers.Cropping1D((3, 0))(tensor_dict["hourly_conv4"]),
         ]
     )
-    hourly_dense = tf.keras.layers.Dense(256, activation="relu", name="hour8")(
+    hourly_dense = tf.keras.layers.Dense(50, activation="relu", name="hour8")(
         hourly_comb1
     )
     hour_output = tf.keras.layers.Flatten()(tf.keras.layers.Dense(1)(hourly_dense))

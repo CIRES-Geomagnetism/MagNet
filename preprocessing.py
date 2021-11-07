@@ -185,6 +185,7 @@ def prepare_data_hourly(
     dst: pd.DataFrame = None,
     norm_df=None,
     output_folder: str = None,
+    coord_system: str = "gsm",
 ) -> Tuple[pd.DataFrame, List[str]]:
     """
     Prepare data for training or prediction.
@@ -203,7 +204,7 @@ def prepare_data_hourly(
     ``prepare_data_hourly(solar.copy(), sunspots.copy(), dst.copy())``.
 
     Args:
-        solar: DataFrame containing solar wind data. This function uses the GSE
+        solar: DataFrame containing solar wind data. This function uses the GSM
             co-ordinates.
         sunspots: DataFrame containing sunspots data, or float. If dataframe, will be
             merged with solar data using timestamp. If float, all rows of output data
@@ -213,6 +214,7 @@ def prepare_data_hourly(
         norm_df: ``None``, or DataFrame containing the normalization scaling factors to
             apply
         output_folder: Path to the directory where normalisation dataframe will be saved
+        coord_system: either "gsm" or "gse"
 
 
     Returns:
@@ -223,9 +225,10 @@ def prepare_data_hourly(
     # convert timedelta
     solar["timedelta"] = pd.to_timedelta(solar["timedelta"])
 
+
     # calculate bt
     solar["bt"] = np.sqrt(
-        solar["bx_gse"] ** 2 + solar["by_gse"] ** 2 + solar["bz_gse"] ** 2
+        solar["bx_gsm"] ** 2 + solar["by_gsm"] ** 2 + solar["bz_gsm"] ** 2
     )
 
     # merge data
@@ -264,15 +267,28 @@ def prepare_data_hourly(
     # fill missing data
     if "month" in solar.columns:
         solar["month"] = solar["month"].fillna(method="ffill")
-    train_cols = [
-        "bt",
-        "density",
-        "speed",
-        "bx_gse",
-        "by_gse",
-        "bz_gse",
-        "smoothed_ssn",
-    ]
+    if coord_system == "gsm":
+        train_cols = [
+            "bt",
+            "density",
+            "speed",
+            "bx_gsm",
+            "by_gsm",
+            "bz_gsm",
+            "smoothed_ssn",
+        ]
+    elif coord_system == "gse":
+        train_cols = [
+            "bt",
+            "density",
+            "speed",
+            "bx_gse",
+            "by_gse",
+            "bz_gse",
+            "smoothed_ssn",
+        ]
+    else:
+        raise ValueError(f"Invalid coord system {coord_system}")
 
     train_short = [c for c in train_cols if c != "smoothed_ssn"]
     for p in solar["period"].unique():
@@ -315,15 +331,6 @@ def prepare_data_hourly(
         solar["target_shift"] = solar["target"].shift(-1)
         solar["target_shift"] = solar["target_shift"].fillna(method="ffill")
 
-    train_cols = [
-        "density",
-        "speed",
-        "bx_gse",
-        "by_gse",
-        "bz_gse",
-        "bt",
-        "smoothed_ssn",
-    ]
     solar[train_cols] = solar[train_cols].astype(float)
 
     return solar, train_cols
@@ -343,7 +350,7 @@ def prepare_data_hybrid(
 ]:
     """
     Prepare data for training or prediction. Returns both hourly and 1-minute data.
-    In the hourly data, the features ``bx_gse_mean``, ``by_gse_mean``, ``bz_gse_mean``
+    In the hourly data, the features ``bx_gsm_mean``, ``by_gsm_mean``, ``bz_gsm_mean``
     ``bt``, ``speed``, and ``density`` are normalised using the same normalisation
     factors as the 1-minute data. This means the 1-minute data can be used in a
     module trained on the hourly data.
@@ -363,7 +370,7 @@ def prepare_data_hybrid(
 
     Args:
         solar_1_min: DataFrame containing solar wind data at 1-minute frequency. This
-            function uses the GSE co-ordinates.
+            function uses the GSM co-ordinates.
         solar_hourly: DataFrame containing solar wind data at hourly frequency. This
             can contain data from the same time period as solar_1_min. If None,
             only return the 1-minute data, but order the columns correctly for using
@@ -393,13 +400,12 @@ def prepare_data_hybrid(
         dst,
         output_folder=output_folder,
         norm_df=norm_df,
-        coord_system="gse",
     )
 
     common_columns = [
-        "bx_gse_mean",
-        "by_gse_mean",
-        "bz_gse_mean",
+        "bx_gsm_mean",
+        "by_gsm_mean",
+        "bz_gsm_mean",
         "bt_mean",
         "density_mean",
         "speed_mean",
