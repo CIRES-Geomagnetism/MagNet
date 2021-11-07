@@ -23,7 +23,16 @@ hours = np.round((solar["Decimal year"] - year) * hours_in_year, 0)
 solar["timestamp"] = year_timestamp + pd.to_timedelta(hours, unit="hour")
 solar["timedelta"] = solar["timestamp"] - solar["timestamp"].min()
 solar.rename(columns={"Dst": "dst", "source_imf": "source"}, inplace=True)
-output_cols = ["period", "timedelta" , "bx_gse", "by_gse", "bz_gse", "density", "speed", "source"]
+output_cols = [
+    "period",
+    "timedelta",
+    "bx_gse",
+    "by_gse",
+    "bz_gse",
+    "density",
+    "speed",
+    "source",
+]
 solar[output_cols].to_csv(os.path.join("data", "old", "solar_wind.csv"), index=False)
 
 # save dst separately

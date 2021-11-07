@@ -9,22 +9,28 @@ import numpy as np
 # os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 import tensorflow as tf
 
-from preprocessing import prepare_data_1_min, prepare_data_hourly, prepare_data_hybrid, DataGen
+from preprocessing import (
+    prepare_data_1_min,
+    prepare_data_hourly,
+    prepare_data_hybrid,
+    DataGen,
+)
 from predict import load_models
 
+
 def train_on_prepared_data(
-        prepared_data: pd.DataFrame,
-        model: tf.keras.Model,
-        initial_weights: Union[List[List[np.ndarray]], List[np.ndarray]],
-        epochs: int,
-        lr: float,
-        bs: int,
-        train_cols,
-        num_models: int = 1,
-        output_folder: str = "trained_models",
-        data_frequency: str = "minute",
-        early_stopping: bool = False,
-)-> Optional[List[float]]:
+    prepared_data: pd.DataFrame,
+    model: tf.keras.Model,
+    initial_weights: Union[List[List[np.ndarray]], List[np.ndarray]],
+    epochs: int,
+    lr: float,
+    bs: int,
+    train_cols,
+    num_models: int = 1,
+    output_folder: str = "trained_models",
+    data_frequency: str = "minute",
+    early_stopping: bool = False,
+) -> Optional[List[float]]:
     """Train and save ensemble of models, each trained on a different subset of data.
 
     Args:
@@ -75,13 +81,17 @@ def train_on_prepared_data(
     # remove the first week from each period, because not enough data for prediction
     valid_ind_arr = []
     for p in prepared_data["period"].unique():
-        all_p = prepared_data.loc[(prepared_data["period"] == p) & valid_bool].index.values[24 * 7:]
+        all_p = prepared_data.loc[
+            (prepared_data["period"] == p) & valid_bool
+        ].index.values[24 * 7 :]
         valid_ind_arr.append(all_p)
     valid_ind = np.concatenate(valid_ind_arr)
-    non_exclude_ind = prepared_data.loc[~prepared_data["train_exclude"].astype(bool)].index.values
+    non_exclude_ind = prepared_data.loc[
+        ~prepared_data["train_exclude"].astype(bool)
+    ].index.values
     np.random.shuffle(months)
     es_callback = tf.keras.callbacks.EarlyStopping(
-        monitor="val_loss", patience=2, restore_best_weights=True
+        monitor="val_loss", patience=3, restore_best_weights=True
     )
     for model_ind in range(num_models):
         if isinstance(initial_weights[0], np.ndarray):
@@ -107,7 +117,7 @@ def train_on_prepared_data(
             ]
             leave_out_months_ind = prepared_data.loc[
                 valid_bool & prepared_data["month"].isin(leave_out_months)
-                ].index.values
+            ].index.values
             curr_months_ind = prepared_data.loc[
                 valid_bool & (~prepared_data["month"].isin(leave_out_months))
             ].index.values
@@ -151,7 +161,7 @@ def train_on_prepared_data(
                 ]
                 leave_out_months_ind = prepared_data.loc[
                     valid_bool & prepared_data["month"].isin(leave_out_months)
-                    ].index.values
+                ].index.values
                 curr_months_ind = prepared_data.loc[
                     valid_bool & (~prepared_data["month"].isin(leave_out_months))
                 ].index.values
@@ -195,9 +205,7 @@ def train_on_prepared_data(
         if early_stopping:
             with open(os.path.join(output_folder, "log.txt"), "a") as f:
                 es_iter = es_callback.stopped_epoch - es_callback.patience + 1
-                f.write(
-                    f"\n\nEarly stopping iterations: {es_iter}"
-                )
+                f.write(f"\n\nEarly stopping iterations: {es_iter}")
         # t + 1 model
         tf.keras.backend.clear_session()
         model.compile(
@@ -232,7 +240,9 @@ def train_nn_models(
     solar: pd.DataFrame,
     sunspots: pd.DataFrame,
     dst: pd.DataFrame,
-    model_definer: Callable[[], Tuple[tf.keras.Model, List[np.ndarray], int, float, int]],
+    model_definer: Callable[
+        [], Tuple[tf.keras.Model, List[np.ndarray], int, float, int]
+    ],
     num_models: int = 1,
     output_folder: str = "trained_models",
     data_frequency: str = "minute",
@@ -288,21 +298,38 @@ def train_nn_models(
     with open(os.path.join(output_folder, "log.txt"), "w") as f:
         f.write(inspect.getsource(model_definer))
 
-    return train_on_prepared_data(solar, model, initial_weights, epochs, lr, bs, train_cols, num_models,
-                                  output_folder, data_frequency, early_stopping)
+    return train_on_prepared_data(
+        solar,
+        model,
+        initial_weights,
+        epochs,
+        lr,
+        bs,
+        train_cols,
+        num_models,
+        output_folder,
+        data_frequency,
+        early_stopping,
+    )
 
 
 def train_nn_hybrid_models(
-        solar_hourly: pd.DataFrame,
-        solar_1_min: pd.DataFrame,
-        sunspots: pd.DataFrame,
-        dst: pd.DataFrame,
-        model_definer: Callable[[], Tuple[Tuple[tf.keras.Model, np.ndarray, int, float, int], Tuple[tf.keras.Model, np.ndarray, int, float, int]]],
-        num_models: int = 1,
-        output_folder: str = "trained_models",
-        output_folder_hourly: str = "trained_models",
-        early_stopping: bool = False,
-        freeze_hourly_layers: bool = True,
+    solar_hourly: pd.DataFrame,
+    solar_1_min: pd.DataFrame,
+    sunspots: pd.DataFrame,
+    dst: pd.DataFrame,
+    model_definer: Callable[
+        [],
+        Tuple[
+            Tuple[tf.keras.Model, List[np.ndarray], int, float, int],
+            Tuple[tf.keras.Model, List[np.ndarray], int, float, int],
+        ],
+    ],
+    num_models: int = 1,
+    output_folder: str = "trained_models",
+    output_folder_hourly: str = "trained_models",
+    early_stopping: bool = False,
+    freeze_hourly_layers: bool = True,
 ) -> Optional[List[float]]:
     """Train and save ensemble of models, each trained on a different subset of data.
     This function is similar to  ``train_nn_models``, but is for training hybrid
@@ -346,12 +373,26 @@ def train_nn_hybrid_models(
     """
 
     # prepare data
-    solar_1_min, solar_hourly, train_cols_1_min, train_cols_hourly = prepare_data_hybrid(solar_1_min, solar_hourly, sunspots,
-                                                                                         dst, None, output_folder, output_folder_hourly)
+    (
+        solar_1_min,
+        solar_hourly,
+        train_cols_1_min,
+        train_cols_hourly,
+    ) = prepare_data_hybrid(
+        solar_1_min,
+        solar_hourly,
+        sunspots,
+        dst,
+        None,
+        output_folder,
+        output_folder_hourly,
+    )
 
     # define model and training parameters
-    (minute_model, initial_weights_minute, minute_epochs, minute_lr, minute_bs), \
-    (hour_model, initial_weights_hour, hour_epochs, hour_lr, hour_bs) = model_definer()
+    (
+        (minute_model, initial_weights_minute, minute_epochs, minute_lr, minute_bs),
+        (hour_model, initial_weights_hour, hour_epochs, hour_lr, hour_bs),
+    ) = model_definer()
 
     # train the hourly part
     train_on_prepared_data(
@@ -372,7 +413,7 @@ def train_nn_hybrid_models(
     model_t_arr, model_t_plus_1_arr, _ = load_models(output_folder_hourly, num_models)
     hour_to_minute_layer_dict = {}
     for i, layer in enumerate(hour_model.layers):
-        if 'hour' in layer.name:
+        if "hour" in layer.name:
             j = 0
             while j < len(minute_model.layers):
                 if minute_model.layers[j].name == layer.name:
@@ -385,21 +426,24 @@ def train_nn_hybrid_models(
         for i in range(len(model_t_arr[model_ind].layers)):
             if i in hour_to_minute_layer_dict:
                 minute_layer_ind = hour_to_minute_layer_dict[i]
-                minute_model.layers[minute_layer_ind].set_weights(model_t_arr[model_ind].layers[i].get_weights())
+                minute_model.layers[minute_layer_ind].set_weights(
+                    model_t_arr[model_ind].layers[i].get_weights()
+                )
         minute_weights_arr.append(minute_model.get_weights())
     # t + 1 models
     for model_ind in range(num_models):
         for i in range(len(model_t_plus_1_arr[model_ind].layers)):
             if i in hour_to_minute_layer_dict:
                 minute_layer_ind = hour_to_minute_layer_dict[i]
-                minute_model.layers[minute_layer_ind].set_weights(model_t_plus_1_arr[model_ind].layers[i].get_weights())
+                minute_model.layers[minute_layer_ind].set_weights(
+                    model_t_plus_1_arr[model_ind].layers[i].get_weights()
+                )
         minute_weights_arr.append(minute_model.get_weights())
 
     if freeze_hourly_layers:
         for layer in minute_model.layers:
-            if 'hour' in layer.name:
+            if "hour" in layer.name:
                 layer.trainable = False
-
 
     # train the complete model
     oos_accuracy = train_on_prepared_data(

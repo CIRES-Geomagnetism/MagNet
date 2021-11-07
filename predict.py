@@ -8,7 +8,12 @@ import pandas as pd
 import numpy as np
 import tensorflow as tf
 
-from preprocessing import DataGen, prepare_data_1_min, prepare_data_hourly, prepare_data_hybrid
+from preprocessing import (
+    DataGen,
+    prepare_data_1_min,
+    prepare_data_hourly,
+    prepare_data_hybrid,
+)
 
 
 def load_models(
@@ -47,7 +52,7 @@ def predict_one_time(
     model_t_arr: List[tf.keras.Model],
     model_t_plus_one_arr: List[tf.keras.Model],
     norm_df: pd.DataFrame,
-    frequency: str
+    frequency: str,
 ) -> Tuple[float, float]:
     """
     Given 7 days of data at 1-minute frequency up to time ``t-1``, make predictions for
@@ -131,11 +136,15 @@ def predict_batch(
     diff = solar["timedelta"].diff()
     diff.loc[solar["period"] != solar["period"].shift()] = np.nan
     valid_diff = solar["period"] == solar["period"].shift(1)
-    if (frequency in ["minute", "hybrid"]) and np.any(diff.loc[valid_diff] != dt.timedelta(minutes=1)):
+    if (frequency in ["minute", "hybrid"]) and np.any(
+        diff.loc[valid_diff] != dt.timedelta(minutes=1)
+    ):
         raise ValueError(
             "Input data must be sorted by period and time and have 1-minute frequency."
         )
-    elif (frequency == "hour") and np.any(diff.loc[valid_diff] != dt.timedelta(hours=1)):
+    elif (frequency == "hour") and np.any(
+        diff.loc[valid_diff] != dt.timedelta(hours=1)
+    ):
         raise ValueError(
             "Input data must be sorted by period and time and have 1-hour frequency."
         )
@@ -149,13 +158,17 @@ def predict_batch(
 
     # prepare data
     if frequency == "minute":
-        solar, train_cols = prepare_data_1_min(solar.copy(), sunspots.copy(), norm_df=norm_df)
+        solar, train_cols = prepare_data_1_min(
+            solar.copy(), sunspots.copy(), norm_df=norm_df
+        )
     elif frequency == "hour":
-        solar, train_cols = prepare_data_hourly(solar.copy(), sunspots.copy(),
-                                               norm_df=norm_df)
+        solar, train_cols = prepare_data_hourly(
+            solar.copy(), sunspots.copy(), norm_df=norm_df
+        )
     elif frequency == "hybrid":
-        solar, train_cols = prepare_data_hybrid(solar.copy(), None, sunspots.copy(),
-                                                      norm_df=norm_df)
+        solar, train_cols = prepare_data_hybrid(
+            solar.copy(), None, sunspots.copy(), norm_df=norm_df
+        )
     else:
         raise ValueError(f"Invalid frequency {frequency}")
 

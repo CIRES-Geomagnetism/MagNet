@@ -14,7 +14,7 @@ def prepare_data_1_min(
     dst: pd.DataFrame = None,
     norm_df=None,
     output_folder: str = None,
-    coord_system: str = "gsm"
+    coord_system: str = "gsm",
 ) -> Tuple[pd.DataFrame, List[str]]:
     """
     Prepare data for training or prediction.
@@ -142,7 +142,7 @@ def prepare_data_1_min(
         norm_df["uq"] = solar[train_cols].quantile(0.75)
         norm_df["iqr"] = norm_df["uq"] - norm_df["lq"]
     if output_folder is not None:
-            norm_df.to_csv(os.path.join(output_folder, "norm_df.csv"))
+        norm_df.to_csv(os.path.join(output_folder, "norm_df.csv"))
     solar[train_cols] = (solar[train_cols] - norm_df["median"]) / norm_df["iqr"]
 
     if dst is not None:
@@ -315,7 +315,15 @@ def prepare_data_hourly(
         solar["target_shift"] = solar["target"].shift(-1)
         solar["target_shift"] = solar["target_shift"].fillna(method="ffill")
 
-    train_cols = ["density", "speed", "bx_gse", "by_gse", "bz_gse", "bt", "smoothed_ssn"]
+    train_cols = [
+        "density",
+        "speed",
+        "bx_gse",
+        "by_gse",
+        "bz_gse",
+        "bt",
+        "smoothed_ssn",
+    ]
     solar[train_cols] = solar[train_cols].astype(float)
 
     return solar, train_cols
@@ -328,9 +336,11 @@ def prepare_data_hybrid(
     dst: pd.DataFrame = None,
     norm_df=None,
     output_folder: str = None,
-    output_folder_hourly: str = None
-) -> Union[Tuple[pd.DataFrame, pd.DataFrame, List[str], List[str]],
-           Tuple[pd.DataFrame, List[str]]]:
+    output_folder_hourly: str = None,
+) -> Union[
+    Tuple[pd.DataFrame, pd.DataFrame, List[str], List[str]],
+    Tuple[pd.DataFrame, List[str]],
+]:
     """
     Prepare data for training or prediction. Returns both hourly and 1-minute data.
     In the hourly data, the features ``bx_gse_mean``, ``by_gse_mean``, ``bz_gse_mean``
@@ -378,24 +388,41 @@ def prepare_data_hybrid(
 
     # prepare 1-minute data
     solar_1_min, train_cols_1_min = prepare_data_1_min(
-        solar_1_min, sunspots, dst, output_folder=output_folder, norm_df=norm_df,
-        coord_system="gse"
+        solar_1_min,
+        sunspots,
+        dst,
+        output_folder=output_folder,
+        norm_df=norm_df,
+        coord_system="gse",
     )
 
-    common_columns = ['bx_gse_mean', 'by_gse_mean', 'bz_gse_mean', 'bt_mean',
-                      'density_mean', 'speed_mean', 'smoothed_ssn']
+    common_columns = [
+        "bx_gse_mean",
+        "by_gse_mean",
+        "bz_gse_mean",
+        "bt_mean",
+        "density_mean",
+        "speed_mean",
+        "smoothed_ssn",
+    ]
     common_columns_no_suffix = [c.replace("_mean", "") for c in common_columns]
     if solar_hourly is not None:
         # prepare hourly data, using same normalisation factors
         norm_df = pd.read_csv(os.path.join(output_folder, "norm_df.csv"), index_col=0)
         norm_df = norm_df.loc[common_columns_no_suffix]
         solar_hourly, train_cols_hourly = prepare_data_hourly(
-            solar_hourly, sunspots, dst, output_folder=output_folder_hourly, norm_df=norm_df
+            solar_hourly,
+            sunspots,
+            dst,
+            output_folder=output_folder_hourly,
+            norm_df=norm_df,
         )
 
     # sort columns so that common columns occur in same order in 1-minute and
     # hourly data
-    minute_ordered = common_columns + [c for c in train_cols_1_min if c not in common_columns]
+    minute_ordered = common_columns + [
+        c for c in train_cols_1_min if c not in common_columns
+    ]
     hour_ordered = common_columns_no_suffix
 
     if solar_hourly is None:

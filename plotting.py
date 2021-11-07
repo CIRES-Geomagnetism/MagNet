@@ -12,10 +12,10 @@ def plot_binned_RMSE(actual: np.ndarray, predicted: np.ndarray, bin_edges):
         bin_edges: edges of the bins by which to group the data
     """
 
-    df = pd.DataFrame({'actual': actual, 'predicted': predicted})
-    df['bin'] = pd.cut(df['actual'], bin_edges)
-    df['sq_err'] = (df['actual'] - df['predicted']) ** 2
-    RMSE_by_bin = np.sqrt(df.groupby('bin')['sq_err'].mean())
+    df = pd.DataFrame({"actual": actual, "predicted": predicted})
+    df["bin"] = pd.cut(df["actual"], bin_edges)
+    df["sq_err"] = (df["actual"] - df["predicted"]) ** 2
+    RMSE_by_bin = np.sqrt(df.groupby("bin")["sq_err"].mean())
     plt.plot(RMSE_by_bin.values)
     labels = [s.replace(",", ",\n") for s in RMSE_by_bin.index.astype(str).values]
     plt.xticks(ticks=np.arange(len(RMSE_by_bin)), labels=labels)
