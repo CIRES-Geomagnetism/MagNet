@@ -280,15 +280,16 @@ def define_model_lstm_1_min() -> Tuple[
         bs: Batch size
     """
 
-    """LSTM model, similar to first-place model:
-    https://github.com/drivendataorg/magnet-geomagnetic-field/blob/399c123f1470c0f4de5c2a27122e9954497190ac/1st_Place/MagNet_Model_the_Geomagnetic_Field_first_place_solution.ipynb"""
-    input1 = tf.keras.layers.Input((24 * 7 * 6, 13))
-    lstm1 = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(128, return_sequences=True))(input1)
+    input = tf.keras.layers.Input((24 * 7 * 6, 13))
+    conv1 = tf.keras.layers.Conv1D(64, kernel_size=6, strides=3, activation="relu")(input)
+    conv2 = tf.keras.layers.Conv1D(64, kernel_size=6, strides=3, activation="relu")(conv1)
+    lstm1 = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(128, return_sequences=True))(conv2)
     gru1 = tf.keras.layers.Bidirectional(tf.keras.layers.GRU(256, return_sequences=True))(lstm1)
     flatten = tf.keras.layers.Flatten()(gru1)
-    dense = tf.keras.layers.Dense(1)(flatten)
-    model = tf.keras.models.Model(inputs=input1, outputs=dense)
-
+    drop = tf.keras.layers.Dropout(0.2)(flatten)
+    dense = tf.keras.layers.Dense(128, activation="relu")(drop)
+    output = tf.keras.layers.Dense(1)(dense)
+    model = tf.keras.models.Model(inputs=input, outputs=output)
     initial_weights = model.get_weights()
     epochs = 7
     lr = 0.00025
@@ -301,14 +302,14 @@ def define_model_lstm_hourly() -> Tuple[
     tf.keras.Model, List[np.ndarray], int, float, int
 ]:
 
-    """LSTM model, similar to first-place model:
-    https://github.com/drivendataorg/magnet-geomagnetic-field/blob/399c123f1470c0f4de5c2a27122e9954497190ac/1st_Place/MagNet_Model_the_Geomagnetic_Field_first_place_solution.ipynb"""
-    input1 = tf.keras.layers.Input((24 * 7, 7))
-    lstm1 = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(128, return_sequences=True))(input1)
-    gru1 = tf.keras.layers.Bidirectional(tf.keras.layers.GRU(256, return_sequences=True))(lstm1)
+    input = tf.keras.layers.Input((24 * 7, 7))
+    lstm1 = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(128, return_sequences=True))(input)
+    gru1 = tf.keras.layers.Bidirectional(tf.keras.layers.GRU(128, return_sequences=True))(lstm1)
     flatten = tf.keras.layers.Flatten()(gru1)
-    dense = tf.keras.layers.Dense(1)(flatten)
-    model = tf.keras.models.Model(inputs=input1, outputs=dense)
+    drop = tf.keras.layers.Dropout(0.2)(flatten)
+    dense = tf.keras.layers.Dense(128, activation="relu")(drop)
+    output = tf.keras.layers.Dense(1)(dense)
+    model = tf.keras.models.Model(inputs=input, outputs=output)
     initial_weights = model.get_weights()
     epochs = 10
     lr = 0.00025
@@ -328,7 +329,7 @@ def define_model_lstm_hybrid() -> Tuple[
         hour_padded_inputs
     )
     # hourly part of main model has same structure as hourly model and will re-use weights
-    hour_lstm = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64, return_sequences=True, name="hour1"))(hourly_avg)
+    hour_lstm = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(128, return_sequences=True, name="hour1"))(hourly_avg)
     hour_gru = tf.keras.layers.Bidirectional(tf.keras.layers.GRU(128, return_sequences=True, name="hour2"))(hour_lstm)
 
     # high-frequency part, uses additional std features

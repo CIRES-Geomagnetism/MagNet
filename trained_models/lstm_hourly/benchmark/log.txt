@@ -1,0 +1,20 @@
+def define_model_lstm_hourly() -> Tuple[
+    tf.keras.Model, List[np.ndarray], int, float, int
+]:
+
+    input = tf.keras.layers.Input((24 * 7, 7))
+    lstm1 = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(128, return_sequences=True))(input)
+    gru1 = tf.keras.layers.Bidirectional(tf.keras.layers.GRU(128, return_sequences=True))(lstm1)
+    flatten = tf.keras.layers.Flatten()(gru1)
+    drop = tf.keras.layers.Dropout(0.2)(flatten)
+    dense = tf.keras.layers.Dense(128, activation="relu")(drop)
+    output = tf.keras.layers.Dense(1)(dense)
+    model = tf.keras.models.Model(inputs=input, outputs=output)
+    initial_weights = model.get_weights()
+    epochs = 10
+    lr = 0.00025
+    bs = 256
+    return model, initial_weights, epochs, lr, bs
+
+
+Early stopping iterations: 2
