@@ -16,7 +16,7 @@ def plot_binned_RMSE(actual: np.ndarray, predicted: np.ndarray, bin_edges):
     df["bin"] = pd.cut(df["actual"], bin_edges)
     df["sq_err"] = (df["actual"] - df["predicted"]) ** 2
     RMSE_by_bin = np.sqrt(df.groupby("bin")["sq_err"].mean())
-    plt.plot(RMSE_by_bin.values)
+    plt.plot(RMSE_by_bin.values, marker='.', markersize=15)
     labels = [s.replace(",", ",\n") for s in RMSE_by_bin.index.astype(str).values]
     plt.xticks(ticks=np.arange(len(RMSE_by_bin)), labels=labels)
     plt.xlabel("DST range")
