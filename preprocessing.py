@@ -15,9 +15,10 @@ def prepare_data_1_min(
     norm_df=None,
     output_folder: str = None,
     coord_system: str = "gsm",
+    output_freq: str = "10_minute",
 ) -> Tuple[pd.DataFrame, List[str]]:
     """
-    Prepare data for training or prediction.
+    Prepare data for training or prediction, returning 10-minute aggregates.
 
     If ``dst`` is ``None``, prepare dataframe of feature variables only for prediction
     using previously-calculated normalization scaling factors in ``norm_df``.
@@ -45,6 +46,7 @@ def prepare_data_1_min(
             apply
         output_folder: Path to the directory where normalisation dataframe will be saved
         coord_system: either "gsm" or "gse"
+        output_freq: "10_minute" or "hour", how to aggregate the output data
 
 
     Returns:
@@ -155,7 +157,13 @@ def prepare_data_1_min(
         solar["target_shift"] = solar["target_shift"].fillna(method="ffill")
         assert solar[train_cols + ["target", "target_shift"]].isnull().sum().sum() == 0
 
-    # aggregate features in 10-minute increments
+    # aggregate features
+    if output_freq == "10_minute":
+        win = 10
+    elif output_freq == "hour":
+        win = 60
+    else:
+        raise ValueError("output_freq must be 10_minute or hour.")
     new_cols = [c + suffix for suffix in ["_mean", "_std"] for c in train_short]
     train_cols = new_cols + ["smoothed_ssn"]
     new_df = pd.DataFrame(index=solar.index, columns=new_cols)
@@ -163,7 +171,7 @@ def prepare_data_1_min(
         curr_period = solar["period"] == p
         new_df.loc[curr_period] = (
             solar.loc[curr_period, train_short]
-            .rolling(window=10, min_periods=1, center=False)
+            .rolling(window=win, min_periods=1, center=False)
             .agg(["mean", "std"])
             .values
         )
@@ -173,8 +181,8 @@ def prepare_data_1_min(
     solar = pd.concat([solar, new_df], axis=1)
     solar[train_cols] = solar[train_cols].astype(float)
 
-    # sample at 10-minute frequency
-    solar = solar.loc[solar["timedelta"].dt.seconds % 600 == 0].reset_index()
+    # sample at output frequency
+    solar = solar.loc[solar["timedelta"].dt.seconds % (win * 60) == 0].reset_index()
 
     return solar, train_cols
 
@@ -298,12 +306,13 @@ def prepare_data_hourly(
             .fillna(method="ffill", axis=0)
             .fillna(method="bfill", axis=0)
         )
+
         # fill short gaps with interpolation
         roll = (
             solar[train_short]
             .rolling(window=20, min_periods=1)
             .mean()
-            .interpolate("linear", axis=0, limit=1)
+            .interpolate("linear", axis=0, limit=6)
         )
         solar.loc[curr_period, train_short] = solar.loc[
             curr_period, train_short
@@ -344,6 +353,7 @@ def prepare_data_hybrid(
     norm_df=None,
     output_folder: str = None,
     output_folder_hourly: str = None,
+    freq_for_1_min_data="10_minute"
 ) -> Union[
     Tuple[pd.DataFrame, pd.DataFrame, List[str], List[str]],
     Tuple[pd.DataFrame, List[str]],
@@ -386,6 +396,7 @@ def prepare_data_hybrid(
             data will be saved
         output_folder_hourly: Path to the directory where normalisation dataframe for 1-minute
             data will be saved
+        freq_for_1_min_data: "10_minute" or "hour": how to aggregate the 1-minute data
 
     Returns:
         solar_1_min, solar_hourly, train_cols_1_min, train_cols_hourly: if `
@@ -400,6 +411,7 @@ def prepare_data_hybrid(
         dst,
         output_folder=output_folder,
         norm_df=norm_df,
+        output_freq=freq_for_1_min_data
     )
 
     common_columns = [

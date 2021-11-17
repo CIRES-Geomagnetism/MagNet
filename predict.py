@@ -167,7 +167,7 @@ def predict_batch(
         )
     elif frequency == "hybrid":
         solar, train_cols = prepare_data_hybrid(
-            solar.copy(), None, sunspots.copy(), norm_df=norm_df
+            solar.copy(), None, sunspots.copy(), norm_df=norm_df, freq_for_1_min_data="10_minute"
         )
     else:
         raise ValueError(f"Invalid frequency {frequency}")
@@ -192,7 +192,7 @@ def predict_batch(
     # make prediction
     predictions = pd.DataFrame(prediction_times[["timedelta", "period"]].copy())
     valid_ind = solar.loc[solar["valid_ind"]].index.values
-    sequence_length = 24 * 6 * 7 if (frequency in ["minute", "hybrid"]) else 24 * 7
+    sequence_length = 24 * 6 * 7 if frequency in ["minute", "hybrid"] else 24 * 7
     datagen = DataGen(
         solar[train_cols].values,
         valid_ind,

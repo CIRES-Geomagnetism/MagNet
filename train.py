@@ -96,8 +96,16 @@ def train_on_prepared_data(
     ].index.values
     np.random.shuffle(months)
     es_callback = tf.keras.callbacks.EarlyStopping(
-        monitor="val_loss", patience=3, restore_best_weights=True
+        monitor="val_loss", patience=5, restore_best_weights=True
     )
+    lr_callback = tf.keras.callbacks.ReduceLROnPlateau(monitor="val_loss",
+                                                       factor=0.2,
+                                                       patience=3,
+                                                       min_lr=1e-6,
+                                                       mode="min")
+    callbacks = []
+    if early_stopping:
+        callbacks.append(es_callback)
     for model_ind in range(num_models):
         if isinstance(initial_weights[0], np.ndarray):
             initial_weights_t = initial_weights
@@ -144,16 +152,13 @@ def train_on_prepared_data(
                 bs,
                 sequence_length,
             )
-            if early_stopping:
-                model.fit(
-                    train_gen,
-                    validation_data=test_gen,
-                    epochs=100,
-                    verbose=1,
-                    callbacks=[es_callback],
-                )
-            else:
-                model.fit(train_gen, validation_data=test_gen, epochs=epochs, verbose=1)
+            model.fit(
+                train_gen,
+                validation_data=test_gen,
+                epochs=100,
+                verbose=1,
+                callbacks=callbacks,
+            )
             oos_accuracy.append(model.evaluate(test_gen, verbose=2)[1])
             print("Out of sample accuracy: ", oos_accuracy)
             print("Out of sample accuracy mean: {}".format(np.mean(oos_accuracy)))
@@ -193,7 +198,7 @@ def train_on_prepared_data(
                     validation_data=test_gen,
                     epochs=100,
                     verbose=1,
-                    callbacks=[es_callback],
+                    callbacks=callbacks,
                 )
             else:
                 # fit on all data
@@ -205,7 +210,7 @@ def train_on_prepared_data(
                     bs,
                     sequence_length,
                 )
-                model.fit(train_gen, epochs=epochs, verbose=1)
+                model.fit(train_gen, epochs=epochs, verbose=1, callbacks=callbacks)
         model.save(os.path.join(output_folder, "model_t_{}.h5".format(model_ind)))
         if early_stopping:
             with open(os.path.join(output_folder, "log.txt"), "a") as f:
@@ -391,6 +396,7 @@ def train_nn_hybrid_models(
         None,
         output_folder,
         output_folder_hourly,
+        freq_for_1_min_data="10_minute"
     )
 
     # define model and training parameters
