@@ -1,0 +1,136 @@
+def define_model_transformer_1_min() -> Tuple[
+    tf.keras.Model, List[np.ndarray], int, float, int
+]:
+    """Define the structure of the neural network.
+
+    This code is adapted from a tutorial on the keras website by Theodoros Ntakouris:
+    https://keras.io/examples/timeseries/timeseries_transformer_classification/
+
+    Returns:
+        model: keras model
+        initial_weights: Array of initial weights used to reset the model to its
+            original state
+        epochs: Number of epochs
+        lr: Learning rate
+        bs: Batch size
+    """
+
+
+    def transformer_encoder(
+        inputs: tf.Tensor, head_size: int, num_heads: int, ff_dim: int, dropout: float
+    ) -> tf.Tensor:
+        # Normalization and Attention
+        x = tf.keras.layers.LayerNormalization(epsilon=1e-6)(inputs)
+        x = tf.keras.layers.MultiHeadAttention(
+            key_dim=head_size, num_heads=num_heads, dropout=dropout, output_shape=ff_dim,
+        )(x, x)
+        x = tf.keras.layers.Dropout(dropout)(x)
+        res = x + inputs
+
+        # Feed Forward Part
+        x = tf.keras.layers.LayerNormalization(epsilon=1e-6)(res)
+        x = tf.keras.layers.Conv1D(filters=ff_dim, kernel_size=1, activation="relu")(x)
+        x = tf.keras.layers.Dropout(dropout)(x)
+        x = tf.keras.layers.Conv1D(filters=ff_dim, kernel_size=1, activation="relu")(x)
+        return x + res
+
+    num_transformer_blocks = 6  # how many consecutive transformer layers
+    head_size = 64  # channels in the attention head
+    inputs = tf.keras.Input((24 * 6 * 7, 13))
+    conv1 = tf.keras.layers.Conv1D(64, kernel_size=6, strides=3, activation="relu")(inputs)
+    conv2 = tf.keras.layers.Conv1D(64, kernel_size=6, strides=3, activation="relu")(conv1)
+    drop1 = tf.keras.layers.Dropout(0.2)(conv2)
+    num_ts = 110  # output size of dropout layer
+
+    # positional encoding, from https://www.tensorflow.org/text/tutorials/transformer
+    def get_angles(pos, i, d_model):
+        angle_rates = 1 / np.power(10000, (2 * (i // 2)) / np.float32(d_model))
+        return pos * angle_rates
+
+    angle_rads = get_angles(np.arange(num_ts)[:, np.newaxis],
+                            np.arange(64)[np.newaxis, :],
+                            num_ts)
+    # apply sin to even indices in the array; 2i
+    angle_rads[:, 0::2] = np.sin(angle_rads[:, 0::2])
+    # apply cos to odd indices in the array; 2i+1
+    angle_rads[:, 1::2] = np.cos(angle_rads[:, 1::2])
+    pos_encoding = tf.convert_to_tensor(angle_rads, dtype=float)
+
+    timesteps = tf.expand_dims(tf.ones_like(drop1, dtype=float)[:, :, 1], axis=-1) * tf.expand_dims(pos_encoding, axis=0)
+    ext_inputs = tf.keras.layers.Concatenate()([drop1, timesteps])
+    num_heads = 3
+    ff_dim = 64
+    dropout = 0.3
+    mlp_units = [128, 128]
+    mlp_dropout = 0.3
+    x = tf.keras.layers.Conv1D(filters=ff_dim, kernel_size=6, strides=1)(ext_inputs)
+    for _ in range(num_transformer_blocks):
+        x = transformer_encoder(x, head_size, num_heads, ff_dim, dropout)
+
+    for dim in mlp_units:
+        x = tf.keras.layers.Dense(dim, activation="relu")(x)
+        x = tf.keras.layers.Dropout(mlp_dropout)(x)
+    out_conv = tf.keras.layers.Conv1D(filters=1, kernel_size=1, strides=1)(x)
+    output = tf.keras.layers.Dense(1)(tf.keras.layers.Flatten()(out_conv))
+
+    model = tf.keras.Model(inputs, output)
+    initial_weights = model.get_weights()
+    epochs = 5
+    lr = 0.00025
+    bs = 32
+    return model, initial_weights, epochs, lr, bs
+
+
+Early stopping iterations: 3
+
+Early stopping iterations: 3
+
+Early stopping iterations: 3
+
+Early stopping iterations: 15
+
+Early stopping iterations: 1
+
+Early stopping iterations: 1
+
+Early stopping iterations: 3
+
+Early stopping iterations: 3
+
+Early stopping iterations: 3
+
+Early stopping iterations: 3
+
+Early stopping iterations: 3
+
+Early stopping iterations: 3
+
+Early stopping iterations: 3
+
+Early stopping iterations: 3
+
+Early stopping iterations: 1
+
+Early stopping iterations: 3
+
+Early stopping iterations: 3
+
+Early stopping iterations: 10
+
+Early stopping iterations: 3
+
+Early stopping iterations: 2
+
+Early stopping iterations: 6
+
+Early stopping iterations: 3
+
+Early stopping iterations: 1
+
+Early stopping iterations: 2
+
+Early stopping iterations: 5
+
+Early stopping iterations: 5
+
+Early stopping iterations: 6

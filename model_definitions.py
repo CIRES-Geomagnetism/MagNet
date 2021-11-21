@@ -283,12 +283,15 @@ def define_model_lstm_1_min() -> Tuple[
     input = tf.keras.layers.Input((24 * 7 * 6, 13))
     conv1 = tf.keras.layers.Conv1D(64, kernel_size=6, strides=3, activation="relu")(input)
     conv2 = tf.keras.layers.Conv1D(64, kernel_size=6, strides=3, activation="relu")(conv1)
-    lstm1 = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(128, return_sequences=True))(conv2)
-    gru1 = tf.keras.layers.Bidirectional(tf.keras.layers.GRU(256, return_sequences=True))(lstm1)
-    flatten = tf.keras.layers.Flatten()(gru1)
-    drop = tf.keras.layers.Dropout(0.2)(flatten)
-    dense = tf.keras.layers.Dense(128, activation="relu")(drop)
-    output = tf.keras.layers.Dense(1)(dense)
+    drop1 = tf.keras.layers.Dropout(0.2)(conv2)
+    lstm1 = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(128, return_sequences=True))(drop1)
+    gru1 = tf.keras.layers.Bidirectional(tf.keras.layers.GRU(128, return_sequences=True))(lstm1)
+    dense1 = tf.keras.layers.Dense(32, activation="relu")(gru1)
+    dense2 = tf.keras.layers.Dense(32, activation="relu")(dense1)
+    drop2 = tf.keras.layers.Dropout(0.2)(dense2)
+    flatten = tf.keras.layers.Flatten()(drop2)
+    dense3 = tf.keras.layers.Dense(64, activation="relu")(flatten)
+    output = tf.keras.layers.Dense(1)(dense3)
     model = tf.keras.models.Model(inputs=input, outputs=output)
     initial_weights = model.get_weights()
     epochs = 7
@@ -392,46 +395,84 @@ def define_model_transformer_1_min() -> Tuple[
     """
 
     def transformer_encoder(
-        inputs: tf.Tensor, head_size: int, num_heads: int, ff_dim: int, dropout: float
+            inputs: tf.Tensor, head_size: int, num_heads: int, ff_dim: int,
+            dropout: float, ts_inputs=None
     ) -> tf.Tensor:
         # Normalization and Attention
-        x = tf.keras.layers.LayerNormalization(epsilon=1e-6)(inputs)
+        if ts_inputs is None:
+            ext_inputs = inputs
+        else:
+            ext_inputs = tf.keras.layers.Concatenate()([inputs, ts_inputs])
+        x = tf.keras.layers.LayerNormalization(epsilon=1e-6)(ext_inputs)
         x = tf.keras.layers.MultiHeadAttention(
-            key_dim=head_size, num_heads=num_heads, dropout=dropout, output_shape=ff_dim,
+            key_dim=head_size, num_heads=num_heads, dropout=dropout,
+            output_shape=ff_dim,
         )(x, x)
         x = tf.keras.layers.Dropout(dropout)(x)
-        res = x + inputs
+        # res = tf.keras.layers.Concatenate()([x, inputs])
+        res = x + tf.keras.layers.Conv1D(ff_dim, kernel_size=1)(inputs)
 
         # Feed Forward Part
         x = tf.keras.layers.LayerNormalization(epsilon=1e-6)(res)
         x = tf.keras.layers.Conv1D(filters=ff_dim, kernel_size=1, activation="relu")(x)
         x = tf.keras.layers.Dropout(dropout)(x)
-        x = tf.keras.layers.Conv1D(filters=ff_dim, kernel_size=1)(x)
+        x = tf.keras.layers.Conv1D(filters=ff_dim, kernel_size=1, activation="relu")(x)
         return x + res
+
+    inputs = tf.keras.Input((24 * 6 * 7, 13))
+    conv1 = tf.keras.layers.Conv1D(64, kernel_size=6, strides=3, activation="relu")(
+        inputs)
+    conv2 = tf.keras.layers.Conv1D(64, kernel_size=6, strides=3, activation="relu")(
+        conv1)
+    drop1 = tf.keras.layers.Dropout(0.2)(conv2)
+    num_ts = 110  # output size of dropout layer
+
+    # positional encoding, from https://www.tensorflow.org/text/tutorials/transformer
+    def get_angles(pos, i, d_model):
+        angle_rates = 1 / np.power(10000, (2 * (i // 2)) / np.float32(d_model))
+        return pos * angle_rates
+
+    angle_rads = get_angles(np.arange(num_ts)[:, np.newaxis],
+                            np.arange(128)[np.newaxis, :],
+                            num_ts)
+    # apply sin to even indices in the array; 2i
+    angle_rads[:, 0::2] = np.sin(angle_rads[:, 0::2])
+    # apply cos to odd indices in the array; 2i+1
+    angle_rads[:, 1::2] = np.cos(angle_rads[:, 1::2])
+    pos_encoding = tf.convert_to_tensor(angle_rads, dtype=float)
+
+    timesteps = tf.expand_dims(tf.ones_like(drop1, dtype=float)[:, :, 1],
+                               axis=-1) * tf.expand_dims(pos_encoding, axis=0)
+    # timesteps_trim = tf.keras.layers.Cropping1D((5, 0))(timesteps)
 
     num_transformer_blocks = 4  # how many consecutive transformer layers
     head_size = 128  # channels in the attention head
-    inputs = tf.keras.Input((24 * 7 * 6, 13))
-    num_heads = 1
-    ff_dim = 64
-    dropout = 0
-    mlp_units = [128]
-    mlp_dropout = 0
-    x = tf.keras.layers.Conv1D(filters=ff_dim, kernel_size=6, strides=1, activation="relu")(inputs)
+    num_heads = 6
+    ff_dim = 128
+    dropout = 0.3
+    mlp_units = [64]
+    mlp_dropout = 0.3
+    x = tf.keras.layers.Conv1D(ff_dim, kernel_size=1)(drop1) + timesteps
+    # first block has timesteps
+    # x = transformer_encoder(x, head_size, num_heads, ff_dim, dropout, timesteps)
     for _ in range(num_transformer_blocks):
         x = transformer_encoder(x, head_size, num_heads, ff_dim, dropout)
-
-    #x = tf.keras.layers.GlobalAveragePooling1D(data_format="channels_first")(x)
+        # x = transformer_encoder(x, head_size, num_heads, ff_dim, dropout, timesteps)
     for dim in mlp_units:
         x = tf.keras.layers.Dense(dim, activation="relu")(x)
         x = tf.keras.layers.Dropout(mlp_dropout)(x)
     out_conv = tf.keras.layers.Conv1D(filters=1, kernel_size=1, strides=1)(x)
-    output = tf.keras.layers.Dense(1)(tf.keras.layers.Flatten()(out_conv))
+    flatten = tf.keras.layers.Flatten()(out_conv)
+    output = tf.keras.layers.Dense(1)(flatten)
+    #     out_conv = tf.keras.layers.Conv1D(filters=64, kernel_size=1, strides=1)(x)
+    #     drop2 = tf.keras.layers.Dropout(0.3)(out_conv)
+    #     flatten = tf.keras.layers.Flatten()(drop2)
+    #     output = tf.keras.layers.Dense(1)(flatten)
     model = tf.keras.Model(inputs, output)
     initial_weights = model.get_weights()
-    epochs = 5
-    lr = 0.001
-    bs = 512
+    epochs = 30
+    lr = 0.000025
+    bs = 32
     return model, initial_weights, epochs, lr, bs
 
 
@@ -453,47 +494,69 @@ def define_model_transformer_hourly() -> Tuple[
     """
 
     def transformer_encoder(
-        inputs: tf.Tensor, head_size: int, num_heads: int, ff_dim: int, dropout: float
+            inputs: tf.Tensor, head_size: int, num_heads: int, ff_dim: int,
+            dropout: float, ts_inputs=None
     ) -> tf.Tensor:
         # Normalization and Attention
-        x = tf.keras.layers.LayerNormalization(epsilon=1e-6)(inputs)
+        if ts_inputs is None:
+            ext_inputs = inputs
+        else:
+            ext_inputs = tf.keras.layers.Concatenate()([inputs, ts_inputs])
+        x = tf.keras.layers.LayerNormalization(epsilon=1e-6)(ext_inputs)
         x = tf.keras.layers.MultiHeadAttention(
-            key_dim=head_size, num_heads=num_heads, dropout=dropout, output_shape=ff_dim,
+            key_dim=head_size, num_heads=num_heads, dropout=dropout,
+            output_shape=ff_dim,
         )(x, x)
         x = tf.keras.layers.Dropout(dropout)(x)
-        res = x + inputs
+        # res = tf.keras.layers.Concatenate()([x, inputs])
+        res = x + tf.keras.layers.Conv1D(ff_dim, kernel_size=1)(inputs)
 
         # Feed Forward Part
         x = tf.keras.layers.LayerNormalization(epsilon=1e-6)(res)
         x = tf.keras.layers.Conv1D(filters=ff_dim, kernel_size=1, activation="relu")(x)
         x = tf.keras.layers.Dropout(dropout)(x)
-        x = tf.keras.layers.Conv1D(filters=ff_dim, kernel_size=1)(x)
+        x = tf.keras.layers.Conv1D(filters=ff_dim, kernel_size=1, activation="relu")(x)
         return x + res
+
+    inputs = tf.keras.Input((24 * 7, 7))
+    num_ts = 168
+
+    # positional encoding, from https://www.tensorflow.org/text/tutorials/transformer
+    def get_angles(pos, i, d_model):
+        angle_rates = 1 / np.power(10000, (2 * (i // 2)) / np.float32(d_model))
+        return pos * angle_rates
+
+    angle_rads = get_angles(np.arange(num_ts)[:, np.newaxis],
+                            np.arange(128)[np.newaxis, :],
+                            num_ts)
+    # apply sin to even indices in the array; 2i
+    angle_rads[:, 0::2] = np.sin(angle_rads[:, 0::2])
+    # apply cos to odd indices in the array; 2i+1
+    angle_rads[:, 1::2] = np.cos(angle_rads[:, 1::2])
+    pos_encoding = tf.convert_to_tensor(angle_rads, dtype=float)
+
+    timesteps = tf.expand_dims(tf.ones_like(inputs, dtype=float)[:, :, 1],
+                               axis=-1) * tf.expand_dims(pos_encoding, axis=0)
 
     num_transformer_blocks = 4  # how many consecutive transformer layers
     head_size = 128  # channels in the attention head
-    inputs = tf.keras.Input((128, 7))
-    timesteps = tf.expand_dims(tf.expand_dims(tf.range(0, 128, delta=1, dtype=float), axis=-1), axis=0)
-    ext_inputs = tf.keras.layers.Concatenate()([inputs, timesteps])
-    num_heads = 1
-    ff_dim = 64
-    dropout = 0
-    mlp_units = [128]
-    mlp_dropout = 0
-    x = tf.keras.layers.Conv1D(filters=ff_dim, kernel_size=6, strides=1, activation="relu")(inputs)
+    num_heads = 6
+    ff_dim = 128
+    dropout = 0.3
+    mlp_units = [64]
+    mlp_dropout = 0.3
+    x = tf.keras.layers.Conv1D(ff_dim, kernel_size=1)(inputs) + timesteps
     for _ in range(num_transformer_blocks):
         x = transformer_encoder(x, head_size, num_heads, ff_dim, dropout)
-
-    #x = tf.keras.layers.GlobalAveragePooling1D(data_format="channels_first")(x)
     for dim in mlp_units:
         x = tf.keras.layers.Dense(dim, activation="relu")(x)
         x = tf.keras.layers.Dropout(mlp_dropout)(x)
     out_conv = tf.keras.layers.Conv1D(filters=1, kernel_size=1, strides=1)(x)
-    output = tf.keras.layers.Dense(1)(tf.keras.layers.Flatten()(out_conv))
+    flatten = tf.keras.layers.Flatten()(out_conv)
+    output = tf.keras.layers.Dense(1)(flatten)
     model = tf.keras.Model(inputs, output)
     initial_weights = model.get_weights()
-    epochs = 5
-    lr = 0.001
-    bs = 512
-
+    epochs = 30
+    lr = 0.000025
+    bs = 32
     return model, initial_weights, epochs, lr, bs
