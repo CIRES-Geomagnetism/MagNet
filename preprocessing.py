@@ -526,7 +526,7 @@ class DataGen(tf.keras.utils.Sequence):
             idx * self.batch_size : (idx + 1) * self.batch_size
         ]
         for n, i in enumerate(end_indexes):
-            x[n] = self.x[i - self.length + 1 : i + 1, :]
+            x[n] = self.x[i - self.length : i, :]
         if self.y is None:
             return x
         else:
