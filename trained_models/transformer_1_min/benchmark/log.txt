@@ -134,3 +134,33 @@ Early stopping iterations: 5
 Early stopping iterations: 5
 
 Early stopping iterations: 6
+
+Early stopping iterations: 9
+
+Early stopping iterations: 15
+
+Early stopping iterations: 3
+
+Early stopping iterations: 6
+
+Early stopping iterations: 15
+
+Early stopping iterations: 7
+
+Early stopping iterations: 3
+
+Early stopping iterations: 4
+
+Early stopping iterations: 3
+
+Early stopping iterations: 4
+
+Early stopping iterations: 1
+
+Early stopping iterations: 2
+
+Early stopping iterations: 2
+
+Early stopping iterations: 2
+
+Early stopping iterations: 3

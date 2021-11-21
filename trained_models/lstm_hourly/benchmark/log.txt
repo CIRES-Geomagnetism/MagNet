@@ -17,4 +17,4 @@ def define_model_lstm_hourly() -> Tuple[
     return model, initial_weights, epochs, lr, bs
 
 
-Early stopping iterations: 2
+Early stopping iterations: 1

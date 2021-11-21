@@ -403,7 +403,8 @@ def define_model_transformer_1_min() -> Tuple[
             ext_inputs = inputs
         else:
             ext_inputs = tf.keras.layers.Concatenate()([inputs, ts_inputs])
-        x = tf.keras.layers.LayerNormalization(epsilon=1e-6)(ext_inputs)
+        # x = tf.keras.layers.LayerNormalization(epsilon=1e-6)(ext_inputs)
+        x = ext_inputs
         x = tf.keras.layers.MultiHeadAttention(
             key_dim=head_size, num_heads=num_heads, dropout=dropout,
             output_shape=ff_dim,
@@ -413,7 +414,7 @@ def define_model_transformer_1_min() -> Tuple[
         res = x + tf.keras.layers.Conv1D(ff_dim, kernel_size=1)(inputs)
 
         # Feed Forward Part
-        x = tf.keras.layers.LayerNormalization(epsilon=1e-6)(res)
+        # x = tf.keras.layers.LayerNormalization(epsilon=1e-6)(res)
         x = tf.keras.layers.Conv1D(filters=ff_dim, kernel_size=1, activation="relu")(x)
         x = tf.keras.layers.Dropout(dropout)(x)
         x = tf.keras.layers.Conv1D(filters=ff_dim, kernel_size=1, activation="relu")(x)
@@ -433,7 +434,7 @@ def define_model_transformer_1_min() -> Tuple[
         return pos * angle_rates
 
     angle_rads = get_angles(np.arange(num_ts)[:, np.newaxis],
-                            np.arange(128)[np.newaxis, :],
+                            np.arange(32)[np.newaxis, :],
                             num_ts)
     # apply sin to even indices in the array; 2i
     angle_rads[:, 0::2] = np.sin(angle_rads[:, 0::2])
@@ -445,19 +446,21 @@ def define_model_transformer_1_min() -> Tuple[
                                axis=-1) * tf.expand_dims(pos_encoding, axis=0)
     # timesteps_trim = tf.keras.layers.Cropping1D((5, 0))(timesteps)
 
-    num_transformer_blocks = 4  # how many consecutive transformer layers
-    head_size = 128  # channels in the attention head
+    num_transformer_blocks = 6  # how many consecutive transformer layers
+    head_size = 64  # channels in the attention head
     num_heads = 6
-    ff_dim = 128
+    ff_dim = 64
     dropout = 0.3
     mlp_units = [64]
     mlp_dropout = 0.3
-    x = tf.keras.layers.Conv1D(ff_dim, kernel_size=1)(drop1) + timesteps
+    x = drop1
+
     # first block has timesteps
     # x = transformer_encoder(x, head_size, num_heads, ff_dim, dropout, timesteps)
     for _ in range(num_transformer_blocks):
-        x = transformer_encoder(x, head_size, num_heads, ff_dim, dropout)
-        # x = transformer_encoder(x, head_size, num_heads, ff_dim, dropout, timesteps)
+        # x = tf.keras.layers.Conv1D(head_size, kernel_size=1)(x) + timesteps
+        # x = transformer_encoder(x, head_size, num_heads, ff_dim, dropout)
+        x = transformer_encoder(x, head_size, num_heads, ff_dim, dropout, timesteps)
     for dim in mlp_units:
         x = tf.keras.layers.Dense(dim, activation="relu")(x)
         x = tf.keras.layers.Dropout(mlp_dropout)(x)
@@ -470,8 +473,8 @@ def define_model_transformer_1_min() -> Tuple[
     #     output = tf.keras.layers.Dense(1)(flatten)
     model = tf.keras.Model(inputs, output)
     initial_weights = model.get_weights()
-    epochs = 30
-    lr = 0.000025
+    epochs = 10
+    lr = 0.00005
     bs = 32
     return model, initial_weights, epochs, lr, bs
 
@@ -502,7 +505,8 @@ def define_model_transformer_hourly() -> Tuple[
             ext_inputs = inputs
         else:
             ext_inputs = tf.keras.layers.Concatenate()([inputs, ts_inputs])
-        x = tf.keras.layers.LayerNormalization(epsilon=1e-6)(ext_inputs)
+        # x = tf.keras.layers.LayerNormalization(epsilon=1e-6)(ext_inputs)
+        x = ext_inputs
         x = tf.keras.layers.MultiHeadAttention(
             key_dim=head_size, num_heads=num_heads, dropout=dropout,
             output_shape=ff_dim,
@@ -512,14 +516,14 @@ def define_model_transformer_hourly() -> Tuple[
         res = x + tf.keras.layers.Conv1D(ff_dim, kernel_size=1)(inputs)
 
         # Feed Forward Part
-        x = tf.keras.layers.LayerNormalization(epsilon=1e-6)(res)
+        # x = tf.keras.layers.LayerNormalization(epsilon=1e-6)(res)
         x = tf.keras.layers.Conv1D(filters=ff_dim, kernel_size=1, activation="relu")(x)
         x = tf.keras.layers.Dropout(dropout)(x)
         x = tf.keras.layers.Conv1D(filters=ff_dim, kernel_size=1, activation="relu")(x)
         return x + res
 
     inputs = tf.keras.Input((24 * 7, 7))
-    num_ts = 168
+    num_ts = 24 * 7
 
     # positional encoding, from https://www.tensorflow.org/text/tutorials/transformer
     def get_angles(pos, i, d_model):
@@ -527,7 +531,7 @@ def define_model_transformer_hourly() -> Tuple[
         return pos * angle_rates
 
     angle_rads = get_angles(np.arange(num_ts)[:, np.newaxis],
-                            np.arange(128)[np.newaxis, :],
+                            np.arange(32)[np.newaxis, :],
                             num_ts)
     # apply sin to even indices in the array; 2i
     angle_rads[:, 0::2] = np.sin(angle_rads[:, 0::2])
@@ -537,17 +541,18 @@ def define_model_transformer_hourly() -> Tuple[
 
     timesteps = tf.expand_dims(tf.ones_like(inputs, dtype=float)[:, :, 1],
                                axis=-1) * tf.expand_dims(pos_encoding, axis=0)
-
-    num_transformer_blocks = 4  # how many consecutive transformer layers
-    head_size = 128  # channels in the attention head
+    num_transformer_blocks = 6  # how many consecutive transformer layers
+    head_size = 64  # channels in the attention head
     num_heads = 6
-    ff_dim = 128
+    ff_dim = 64
     dropout = 0.3
     mlp_units = [64]
     mlp_dropout = 0.3
-    x = tf.keras.layers.Conv1D(ff_dim, kernel_size=1)(inputs) + timesteps
+    x = inputs
+
+    # first block has timesteps
     for _ in range(num_transformer_blocks):
-        x = transformer_encoder(x, head_size, num_heads, ff_dim, dropout)
+        x = transformer_encoder(x, head_size, num_heads, ff_dim, dropout, timesteps)
     for dim in mlp_units:
         x = tf.keras.layers.Dense(dim, activation="relu")(x)
         x = tf.keras.layers.Dropout(mlp_dropout)(x)
@@ -556,7 +561,7 @@ def define_model_transformer_hourly() -> Tuple[
     output = tf.keras.layers.Dense(1)(flatten)
     model = tf.keras.Model(inputs, output)
     initial_weights = model.get_weights()
-    epochs = 30
-    lr = 0.000025
+    epochs = 10
+    lr = 0.00005
     bs = 32
     return model, initial_weights, epochs, lr, bs

@@ -108,6 +108,7 @@ def train_on_prepared_data(
     callbacks = []
     if early_stopping:
         callbacks.append(es_callback)
+        epochs = 100
     for model_ind in range(num_models):
         if isinstance(initial_weights[0], np.ndarray):
             initial_weights_t = initial_weights

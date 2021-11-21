@@ -49,4 +49,4 @@ def define_model_cnn_hourly() -> Tuple[
     return model, initial_weights, epochs, lr, bs
 
 
-Early stopping iterations: 3
+Early stopping iterations: 4
