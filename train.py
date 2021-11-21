@@ -30,6 +30,7 @@ def train_on_prepared_data(
     output_folder: str = "trained_models",
     data_frequency: str = "minute",
     early_stopping: bool = False,
+    comb_model: bool = False
 ) -> Optional[List[float]]:
     """Train and save ensemble of models, each trained on a different subset of data.
 
@@ -50,6 +51,7 @@ def train_on_prepared_data(
         data_frequency: frequency of the training data: "minute" or "hour"
         early_stopping: If ``True``, stop model training when validation loss stops
             decreasing.  See details under definition of ``train_nn_models``.
+        comb_model: If ``True``, train single model for times ``t`` and ``t+1``.
 
     Returns:
         out-of-sample accuracy: If ``num_models > 1``, returns list of length
@@ -123,6 +125,13 @@ def train_on_prepared_data(
         model.set_weights(initial_weights_t)
         if num_models > 1:
             # define train and test sets
+            # for p in prepared_data["period"].unique():
+            #     curr_months = list(np.sort(np.unique(prepared_data.loc[prepared_data["period"] == p, "month"])))
+            #     leave_out_months += curr_months[
+            #         model_ind
+            #         * (len(curr_months) // num_models) : (model_ind + 1)
+            #         * (len(curr_months) // num_models)
+            #     ]
             leave_out_months = months[
                 model_ind
                 * (len(months) // num_models) : (model_ind + 1)
@@ -138,24 +147,40 @@ def train_on_prepared_data(
                 np.intersect1d(valid_ind, curr_months_ind), non_exclude_ind
             )
             test_ind = np.intersect1d(valid_ind, leave_out_months_ind)
-            train_gen = DataGen(
-                prepared_data[train_cols].values,
-                train_ind,
-                prepared_data["target"].values.flatten(),
-                bs,
-                sequence_length,
-            )
-            test_gen = DataGen(
-                prepared_data[train_cols].values,
-                test_ind,
-                prepared_data["target"].values.flatten(),
-                bs,
-                sequence_length,
-            )
+            if comb_model:
+                train_gen = DataGen(
+                    prepared_data[train_cols].values,
+                    train_ind,
+                    prepared_data[["target", "target_shift"]].values,
+                    bs,
+                    sequence_length,
+                )
+                test_gen = DataGen(
+                    prepared_data[train_cols].values,
+                    test_ind,
+                    prepared_data[["target", "target_shift"]].values,
+                    bs,
+                    sequence_length,
+                )
+            else:
+                train_gen = DataGen(
+                    prepared_data[train_cols].values,
+                    train_ind,
+                    prepared_data["target"].values.flatten(),
+                    bs,
+                    sequence_length,
+                )
+                test_gen = DataGen(
+                    prepared_data[train_cols].values,
+                    test_ind,
+                    prepared_data["target"].values.flatten(),
+                    bs,
+                    sequence_length,
+                )
             model.fit(
                 train_gen,
                 validation_data=test_gen,
-                epochs=100,
+                epochs=epochs,
                 verbose=1,
                 callbacks=callbacks,
             )
@@ -164,6 +189,14 @@ def train_on_prepared_data(
             print("Out of sample accuracy mean: {}".format(np.mean(oos_accuracy)))
         else:
             if early_stopping:
+                leave_out_months = []
+                for p in prepared_data["period"].unique():
+                    curr_months = list(np.sort(np.unique(prepared_data.loc[prepared_data["period"] == p, "month"])))
+                    # leave_out_months += curr_months[
+                    #     model_ind
+                    #     * (len(curr_months) // 5) : (model_ind + 1)
+                    #     * (len(curr_months) // 5)
+                    # ]
                 leave_out_months = months[
                     model_ind
                     * (len(months) // 5) : (model_ind + 1)
@@ -179,24 +212,40 @@ def train_on_prepared_data(
                     np.intersect1d(valid_ind, curr_months_ind), non_exclude_ind
                 )
                 test_ind = np.intersect1d(valid_ind, leave_out_months_ind)
-                train_gen = DataGen(
-                    prepared_data[train_cols].values,
-                    train_ind,
-                    prepared_data["target"].values.flatten(),
-                    bs,
-                    sequence_length,
-                )
-                test_gen = DataGen(
-                    prepared_data[train_cols].values,
-                    test_ind,
-                    prepared_data["target"].values.flatten(),
-                    bs,
-                    sequence_length,
-                )
+                if comb_model:
+                    train_gen = DataGen(
+                        prepared_data[train_cols].values,
+                        train_ind,
+                        prepared_data[["target", "target_shift"]].values,
+                        bs,
+                        sequence_length,
+                    )
+                    test_gen = DataGen(
+                        prepared_data[train_cols].values,
+                        test_ind,
+                        prepared_data[["target", "target_shift"]].values,
+                        bs,
+                        sequence_length,
+                    )
+                else:
+                    train_gen = DataGen(
+                        prepared_data[train_cols].values,
+                        train_ind,
+                        prepared_data["target"].values.flatten(),
+                        bs,
+                        sequence_length,
+                    )
+                    test_gen = DataGen(
+                        prepared_data[train_cols].values,
+                        test_ind,
+                        prepared_data["target"].values.flatten(),
+                        bs,
+                        sequence_length,
+                    )
                 model.fit(
                     train_gen,
                     validation_data=test_gen,
-                    epochs=100,
+                    epochs=epochs,
                     verbose=1,
                     callbacks=callbacks,
                 )
@@ -216,34 +265,35 @@ def train_on_prepared_data(
             with open(os.path.join(output_folder, "log.txt"), "a") as f:
                 es_iter = es_callback.stopped_epoch - es_callback.patience + 1
                 f.write(f"\n\nEarly stopping iterations: {es_iter}")
-        # t + 1 model
-        tf.keras.backend.clear_session()
-        model.compile(
-            loss=tf.keras.losses.MeanSquaredError(),
-            optimizer=tf.keras.optimizers.Adam(learning_rate=lr),
-            metrics=[tf.keras.metrics.RootMeanSquaredError()],
-        )
-        model.set_weights(initial_weights_t_plus_1)
-        data_gen = DataGen(
-            prepared_data[train_cols].values,
-            train_ind,
-            prepared_data["target_shift"].values.flatten(),
-            bs,
-            sequence_length,
-        )
-        if early_stopping and (es_callback.stopped_epoch > 0):
-            model.fit(
-                data_gen,
-                epochs=es_callback.stopped_epoch - es_callback.patience + 1,
-                verbose=1,
+        if not (comb_model):
+            # t + 1 model
+            tf.keras.backend.clear_session()
+            model.compile(
+                loss=tf.keras.losses.MeanSquaredError(),
+                optimizer=tf.keras.optimizers.Adam(learning_rate=lr),
+                metrics=[tf.keras.metrics.RootMeanSquaredError()],
             )
-        else:
-            model.fit(data_gen, epochs=epochs, verbose=1)
-        model.save(
-            os.path.join(output_folder, "model_t_plus_one_{}.h5".format(model_ind))
-        )
-        if num_models > 1:
-            return oos_accuracy
+            model.set_weights(initial_weights_t_plus_1)
+            data_gen = DataGen(
+                prepared_data[train_cols].values,
+                train_ind,
+                prepared_data["target_shift"].values.flatten(),
+                bs,
+                sequence_length,
+            )
+            if early_stopping and (es_callback.stopped_epoch > 0):
+                model.fit(
+                    data_gen,
+                    epochs=es_callback.stopped_epoch - es_callback.patience + 1,
+                    verbose=1,
+                )
+            else:
+                model.fit(data_gen, epochs=epochs, verbose=1)
+            model.save(
+                os.path.join(output_folder, "model_t_plus_one_{}.h5".format(model_ind))
+            )
+    if num_models > 1:
+        return oos_accuracy
 
 
 def train_nn_models(

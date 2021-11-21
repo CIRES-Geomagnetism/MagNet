@@ -105,6 +105,7 @@ def predict_batch(
     model_t_plus_one_arr: List[tf.keras.Model],
     norm_df: pd.DataFrame,
     frequency: str,
+    comb_model: bool = False,
 ) -> pd.DataFrame:
     """
     Make predictions for multiple times; faster than ``predict_one_time``.
@@ -125,6 +126,7 @@ def predict_batch(
         model_t_plus_one_arr: List of models for time ``(t + 1)``
         norm_df: Scaling factors to normalize the data
         frequency: frequency of the model, "minute", "hour" or "hybrid"
+        comb_model: if ``True`` assumes a single model that predicts ``t`` and ``t+1``
 
     Returns:
         predictions: DataFrame with columns ``timedelta``, ``period``, ``prediction_t``
@@ -202,13 +204,17 @@ def predict_batch(
         shuffle=False,
     )
     predictions["prediction_t"] = 0
-    for m in model_t_arr:
-        predictions["prediction_t"] += np.array(m.predict(datagen)).flatten()
-    predictions["prediction_t"] /= len(model_t_arr)
     predictions["prediction_t_plus_1"] = 0
-    for m in model_t_plus_one_arr:
-        predictions["prediction_t_plus_1"] += np.array(m.predict(datagen)).flatten()
-    predictions["prediction_t_plus_1"] /= len(model_t_plus_one_arr)
+    if comb_model:
+        for m in model_t_arr:
+            predictions["prediction_t"] += np.array(m.predict(datagen)).flatten()
+        predictions["prediction_t"] /= len(model_t_arr)
+        for m in model_t_plus_one_arr:
+            predictions["prediction_t_plus_1"] += np.array(m.predict(datagen)).flatten()
+        predictions["prediction_t_plus_1"] /= len(model_t_plus_one_arr)
+    else:
+        for m in model_t_arr:
+            predictions[["prediction_t", "prediction_t_plus_1"]] = np.array(m.predict(datagen))
 
     # restrict to allowed range
     predictions["prediction_t"] = np.maximum(
