@@ -207,14 +207,14 @@ def predict_batch(
     predictions["prediction_t_plus_1"] = 0
     if comb_model:
         for m in model_t_arr:
+            predictions[["prediction_t", "prediction_t_plus_1"]] = np.array(m.predict(datagen))
+    else:
+        for m in model_t_arr:
             predictions["prediction_t"] += np.array(m.predict(datagen)).flatten()
         predictions["prediction_t"] /= len(model_t_arr)
         for m in model_t_plus_one_arr:
             predictions["prediction_t_plus_1"] += np.array(m.predict(datagen)).flatten()
         predictions["prediction_t_plus_1"] /= len(model_t_plus_one_arr)
-    else:
-        for m in model_t_arr:
-            predictions[["prediction_t", "prediction_t_plus_1"]] = np.array(m.predict(datagen))
 
     # restrict to allowed range
     predictions["prediction_t"] = np.maximum(
