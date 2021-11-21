@@ -61,7 +61,7 @@ def simple_model_definer_1_min():
 
 
 def simple_model_definer_hourly():
-    inputs = tf.keras.layers.Input((24 * 7, 6))
+    inputs = tf.keras.layers.Input((24 * 7, 7))
     dense = tf.keras.layers.Dense(1, activation="relu")(inputs)
     output = tf.keras.layers.Dense(1, activation="relu")(
         tf.keras.layers.Flatten()(dense)
