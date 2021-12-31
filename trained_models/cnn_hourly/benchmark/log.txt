@@ -1,7 +1,8 @@
 def define_model_cnn_hourly() -> Tuple[
     tf.keras.Model, List[np.ndarray], int, float, int
 ]:
-    """Define the structure of the neural network for hourly data.
+    """Convolutional neural network for hourly data with 7 features, based on
+    second-place model.
     Returns:
         model: keras model
         initial_weights: Array of initial weights used to reset the model to its

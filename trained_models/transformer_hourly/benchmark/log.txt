@@ -1,7 +1,7 @@
 def define_model_transformer_hourly() -> Tuple[
     tf.keras.Model, List[np.ndarray], int, float, int
 ]:
-    """Define the structure of the neural network.
+    """Transformer network for hourly data with 7 features.
 
     This code is adapted from a tutorial on the keras website by Theodoros Ntakouris:
     https://keras.io/examples/timeseries/timeseries_transformer_classification/
@@ -24,7 +24,7 @@ def define_model_transformer_hourly() -> Tuple[
             ext_inputs = inputs
         else:
             ext_inputs = tf.keras.layers.Concatenate()([inputs, ts_inputs])
-        #x = tf.keras.layers.LayerNormalization(epsilon=1e-6)(ext_inputs)
+        # x = tf.keras.layers.LayerNormalization(epsilon=1e-6)(ext_inputs)
         x = ext_inputs
         x = tf.keras.layers.MultiHeadAttention(
             key_dim=head_size, num_heads=num_heads, dropout=dropout,
@@ -35,7 +35,7 @@ def define_model_transformer_hourly() -> Tuple[
         res = x + tf.keras.layers.Conv1D(ff_dim, kernel_size=1)(inputs)
 
         # Feed Forward Part
-        #x = tf.keras.layers.LayerNormalization(epsilon=1e-6)(res)
+        # x = tf.keras.layers.LayerNormalization(epsilon=1e-6)(res)
         x = tf.keras.layers.Conv1D(filters=ff_dim, kernel_size=1, activation="relu")(x)
         x = tf.keras.layers.Dropout(dropout)(x)
         x = tf.keras.layers.Conv1D(filters=ff_dim, kernel_size=1, activation="relu")(x)
@@ -68,7 +68,7 @@ def define_model_transformer_hourly() -> Tuple[
     mlp_units = [64]
     mlp_dropout = 0.3
     x = inputs
-    
+
     # first block has timesteps
     for _ in range(num_transformer_blocks):
         x = transformer_encoder(x, head_size, num_heads, ff_dim, dropout, timesteps)
@@ -86,4 +86,4 @@ def define_model_transformer_hourly() -> Tuple[
     return model, initial_weights, epochs, lr, bs
 
 
-Early stopping iterations: 3
+Early stopping iterations: 4

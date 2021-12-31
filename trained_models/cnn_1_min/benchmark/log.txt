@@ -1,7 +1,8 @@
 def define_model_cnn_1_min() -> Tuple[
     tf.keras.Model, List[np.ndarray], int, float, int
 ]:
-    """Define the structure of the neural network for 1-minute data
+    """Convolutional neural network for 1-minute data with 13 features, based on
+    second-place model.
     Returns:
         model: keras model
         initial_weights: Array of initial weights used to reset the model to its

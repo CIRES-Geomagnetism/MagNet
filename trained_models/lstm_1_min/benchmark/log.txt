@@ -1,7 +1,9 @@
 def define_model_lstm_1_min() -> Tuple[
     tf.keras.Model, List[np.ndarray], int, float, int
 ]:
-    """Define the structure of the neural network.
+    """LSTM model for 1-minute data with 13 features. Convolutional layers at start
+    to reduce the size of the input before LSTM. LSTM/GRU layers have fewer cells
+    compared to first-place model.
 
     Returns:
         model: keras model
@@ -32,4 +34,4 @@ def define_model_lstm_1_min() -> Tuple[
     return model, initial_weights, epochs, lr, bs
 
 
-Early stopping iterations: 3
+Early stopping iterations: 2
