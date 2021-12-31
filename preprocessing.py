@@ -1,4 +1,4 @@
-"""Functions to pre-process raw data before training or prediciton."""
+"""Functions to pre-process raw data before training or prediction."""
 
 import os
 from typing import List, Optional, Tuple, Union
@@ -18,7 +18,9 @@ def prepare_data_1_min(
     output_freq: str = "10_minute",
 ) -> Tuple[pd.DataFrame, List[str]]:
     """
-    Prepare data for training or prediction, returning 10-minute aggregates.
+    Prepare 1-minute data for training or prediction, returning 10-minute aggregates.
+
+    Returned data will have time series length 24 * 7 * 6, and 13 features.
 
     If ``dst`` is ``None``, prepare dataframe of feature variables only for prediction
     using previously-calculated normalization scaling factors in ``norm_df``.
@@ -82,8 +84,9 @@ def prepare_data_1_min(
 
     # remove anomalous data (exclude from training and fill for prediction)
     solar["bad_data"] = False
-    solar.loc[solar["temperature"] < 1, "bad_data"] = True
-    solar.loc[solar["temperature"] < 1, ["temperature", "speed", "density"]] = np.nan
+    if "temperature" in solar.columns:
+        solar.loc[solar["temperature"] < 1, "bad_data"] = True
+        solar.loc[solar["temperature"] < 1, ["temperature", "speed", "density"]] = np.nan
     for p in solar["period"].unique():
         curr_period = solar["period"] == p
         solar.loc[curr_period, "train_exclude"] = (
@@ -164,7 +167,7 @@ def prepare_data_1_min(
         win = 60
     else:
         raise ValueError("output_freq must be 10_minute or hour.")
-    new_cols = [c + suffix for suffix in ["_mean", "_std"] for c in train_short]
+    new_cols = [c + suffix for c in train_short for suffix in ["_mean", "_std"]]
     train_cols = new_cols + ["smoothed_ssn"]
     new_df = pd.DataFrame(index=solar.index, columns=new_cols)
     for p in solar["period"].unique():
@@ -196,7 +199,9 @@ def prepare_data_hourly(
     coord_system: str = "gsm",
 ) -> Tuple[pd.DataFrame, List[str]]:
     """
-    Prepare data for training or prediction.
+    Prepare hourly data for training or prediction.
+
+    Returned data will have time series length 24 * 7, and 7 features.
 
     If ``dst`` is ``None``, prepare dataframe of feature variables only for prediction
     using previously-calculated normalization scaling factors in ``norm_df``.
@@ -264,8 +269,9 @@ def prepare_data_hourly(
 
     # remove anomalous data (exclude from training and fill for prediction)
     solar["bad_data"] = False
-    solar.loc[solar["temperature"] < 1, "bad_data"] = True
-    solar.loc[solar["temperature"] < 1, ["temperature", "speed", "density"]] = np.nan
+    if "temperature" in solar.columns:
+        solar.loc[solar["temperature"] < 1, "bad_data"] = True
+        solar.loc[solar["temperature"] < 1, ["temperature", "speed", "density"]] = np.nan
     for p in solar["period"].unique():
         curr_period = solar["period"] == p
         solar.loc[curr_period, "train_exclude"] = (

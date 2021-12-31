@@ -33,7 +33,6 @@ def train_on_prepared_data(
     comb_model: bool = False
 ) -> Optional[List[float]]:
     """Train and save ensemble of models, each trained on a different subset of data.
-
     Args:
         prepared_data: DataFrame containing solar wind data, sunspots data, and labels
         model: keras neural network model,
@@ -52,7 +51,6 @@ def train_on_prepared_data(
         early_stopping: If ``True``, stop model training when validation loss stops
             decreasing.  See details under definition of ``train_nn_models``.
         comb_model: If ``True``, train single model for times ``t`` and ``t+1``.
-
     Returns:
         out-of-sample accuracy: If ``num_models > 1``, returns list of length
             ``num_models`` containing RMSE values for out-of-sample predictions for each
@@ -126,13 +124,6 @@ def train_on_prepared_data(
         model.set_weights(initial_weights_t)
         if num_models > 1:
             # define train and test sets
-            # for p in prepared_data["period"].unique():
-            #     curr_months = list(np.sort(np.unique(prepared_data.loc[prepared_data["period"] == p, "month"])))
-            #     leave_out_months += curr_months[
-            #         model_ind
-            #         * (len(curr_months) // num_models) : (model_ind + 1)
-            #         * (len(curr_months) // num_models)
-            #     ]
             leave_out_months = months[
                 model_ind
                 * (len(months) // num_models) : (model_ind + 1)
@@ -403,7 +394,7 @@ def train_nn_hybrid_models(
         dst: DataFrame containing the disturbance storm time (DST) data, i.e. the labels
             for training
         model_definer: Function returning keras model and initial weights. Layers
-            for the hourly data must have name beginning with ``hour``.
+        for the hourly data must have name beginning with ``hour``.
         num_models: Number of models to train.
             Training several models on different subsets of the data and averaging
             results improves model accuracy. If ``num_models = 1``, use all data for

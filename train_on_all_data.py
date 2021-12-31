@@ -2,7 +2,7 @@
 
 import os
 import pandas as pd
-from model_definitions import define_model_cnn
+from model_definitions import define_model_cnn_1_min
 from train import train_nn_models
 
 
@@ -22,9 +22,9 @@ def main():
     dst = pd.concat([dst_train, dst_test], axis=0)
 
     # train and save models
-    output_folder = os.path.join("trained_models", "cnn", "all_data")
+    output_folder = os.path.join("trained_models", "cnn_1_min", "all_data")
     os.makedirs(output_folder, exist_ok=True)
-    train_nn_models(solar, sunspots, dst, define_model_cnn, 5, output_folder)
+    train_nn_models(solar, sunspots, dst, define_model_cnn_1_min, 5, output_folder)
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 
 import os
 import datetime as dt
-from typing import Callable, List, Tuple
+from typing import List, Tuple
 
 import pandas as pd
 import numpy as np
@@ -17,7 +17,7 @@ from preprocessing import (
 
 
 def load_models(
-    input_folder: str, num_models: int,
+    input_folder: str, num_models: int = None,
 ) -> Tuple[List[tf.keras.Model], List[tf.keras.Model], pd.DataFrame]:
     """Define the model structure and load the saved weights of the trained models.
 
@@ -33,6 +33,8 @@ def load_models(
     """
     model_t_arr = []
     model_t_plus_one_arr = []
+    if num_models is None:
+        num_models = len([f for f in os.listdir(input_folder) if f.endswith(".h5")]) // 2
     for i in range(num_models):
         model = tf.keras.models.load_model(
             os.path.join(input_folder, "model_t_{}.h5".format(i))

@@ -1,4 +1,10 @@
-"""Definitions of keras models."""
+"""Definitions of keras models for CNN (based on second-place solution),
+LSTM (based on first-place solution but reduced size), and transformer networks.
+All architectures have versions for 1-minute data and hourly data. The 1-minute
+models expect time series of length 24 * 7 * 6 (i.e. the data should be aggregated
+into 10-minute increments), and 13 features. Hourly model expect time series of
+length 24 * 7. If you want to change the length of the time series, or the number
+of features, you should modify the functions in the ``preprocessing`` module."""
 
 from typing import List, Tuple
 
@@ -6,11 +12,12 @@ import numpy as np
 import tensorflow as tf
 
 
-
 def define_model_cnn_1_min() -> Tuple[
     tf.keras.Model, List[np.ndarray], int, float, int
 ]:
-    """Define the structure of the neural network for 1-minute data
+    """Convolutional neural network for 1-minute data with 13 features, based on
+    second-place model.
+
     Returns:
         model: keras model
         initial_weights: Array of initial weights used to reset the model to its
@@ -64,7 +71,9 @@ def define_model_cnn_1_min() -> Tuple[
 def define_model_cnn_hourly() -> Tuple[
     tf.keras.Model, List[np.ndarray], int, float, int
 ]:
-    """Define the structure of the neural network for hourly data.
+    """Convolutional neural network for hourly data with 7 features, based on
+    second-place model.
+
     Returns:
         model: keras model
         initial_weights: Array of initial weights used to reset the model to its
@@ -269,7 +278,9 @@ def define_model_cnn_hybrid() -> Tuple[
 def define_model_lstm_1_min() -> Tuple[
     tf.keras.Model, List[np.ndarray], int, float, int
 ]:
-    """Define the structure of the neural network.
+    """LSTM model for 1-minute data with 13 features. Convolutional layers at start
+    to reduce the size of the input before LSTM. LSTM/GRU layers have fewer cells
+    compared to first-place model.
 
     Returns:
         model: keras model
@@ -300,10 +311,20 @@ def define_model_lstm_1_min() -> Tuple[
     return model, initial_weights, epochs, lr, bs
 
 
-
 def define_model_lstm_hourly() -> Tuple[
     tf.keras.Model, List[np.ndarray], int, float, int
 ]:
+    """LSTM model for hourly data with 7 features. LSTM/GRU layers have fewer cells
+    compared to first-place model.
+
+    Returns:
+        model: keras model
+        initial_weights: Array of initial weights used to reset the model to its
+            original state
+        epochs: Number of epochs
+        lr: Learning rate
+        bs: Batch size
+    """
 
     input = tf.keras.layers.Input((24 * 7, 7))
     lstm1 = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(128, return_sequences=True))(input)
@@ -324,6 +345,16 @@ def define_model_lstm_hybrid() -> Tuple[
     Tuple[tf.keras.Model, List[np.ndarray], int, float, int],
     Tuple[tf.keras.Model, List[np.ndarray], int, float, int],
 ]:
+    """Hybrid LSTM model for combining 1-minute and hourly data.
+
+    Returns:
+        model: keras model
+        initial_weights: Array of initial weights used to reset the model to its
+            original state
+        epochs: Number of epochs
+        lr: Learning rate
+        bs: Batch size
+    """
 
     # main model
     inputs = tf.keras.layers.Input((24 * 7 * 6, 13))
@@ -380,7 +411,7 @@ def define_model_lstm_hybrid() -> Tuple[
 def define_model_transformer_1_min() -> Tuple[
     tf.keras.Model, List[np.ndarray], int, float, int
 ]:
-    """Define the structure of the neural network.
+    """Transformer network for 1-minute data with 13 features.
 
     This code is adapted from a tutorial on the keras website by Theodoros Ntakouris:
     https://keras.io/examples/timeseries/timeseries_transformer_classification/
@@ -482,7 +513,7 @@ def define_model_transformer_1_min() -> Tuple[
 def define_model_transformer_hourly() -> Tuple[
     tf.keras.Model, List[np.ndarray], int, float, int
 ]:
-    """Define the structure of the neural network.
+    """Transformer network for hourly data with 7 features.
 
     This code is adapted from a tutorial on the keras website by Theodoros Ntakouris:
     https://keras.io/examples/timeseries/timeseries_transformer_classification/
@@ -565,3 +596,5 @@ def define_model_transformer_hourly() -> Tuple[
     lr = 0.00005
     bs = 32
     return model, initial_weights, epochs, lr, bs
+
+
