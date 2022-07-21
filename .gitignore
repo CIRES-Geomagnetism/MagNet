@@ -5,3 +5,4 @@ __pycache__/
 trained_models/
 doc/_build
 doc/make.bat
+.DS_Store
