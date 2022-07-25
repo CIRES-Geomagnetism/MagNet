@@ -31,6 +31,6 @@ Prediction functions are in `predict.py`.
 
 
 - [doc](https://github.com/liyo6397/MagNet/tree/master/doc): The documentation for the architecture of MagNet CNN models.
-- [Tutorial](https://github.com/liyo6397/MagNet/tree/explainable_ai/tutorials): It contains the tutorials for the machine learning models which has won first
+- [tutorials](https://github.com/liyo6397/MagNet/tree/explainable_ai/tutorials): It contains the tutorials for the machine learning models which has won first
 and second place in MagNet competition. To use the tutorial for MagNet CNN codes, please follows: [tutorial/magnet_cnn_tutorial.ipynb](https://github.com/liyo6397/MagNet/blob/explainable_ai/tutorials/magnet_cnn_tutorial.ipynb).
 - [src](https://github.com/liyo6397/MagNet/tree/explainable_ai/src): The source codes for training and benchmarking DST prediction models.
