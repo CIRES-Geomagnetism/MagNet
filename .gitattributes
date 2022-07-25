@@ -1,0 +1,5 @@
+*.csv filter=lfs diff=lfs merge=lfs -text
+src/trained_models/*.h5 filter=lfs diff=lfs merge=lfs -text
+*.h5 filter=lfs diff=lfs merge=lfs -text
+src/data/private/*.csv filter=lfs diff=lfs merge=lfs -text
+src/data/public/*.csv filter=lfs diff=lfs merge=lfs -text
