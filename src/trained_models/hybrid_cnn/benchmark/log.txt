@@ -1,0 +1,51 @@
+
+
+Early stopping iterations: 2
+
+Early stopping iterations: 3
+
+Early stopping iterations: 2
+
+Early stopping iterations: 2
+
+Early stopping iterations: 1
+
+Early stopping iterations: 2
+
+Early stopping iterations: 1
+
+Early stopping iterations: 1
+
+Early stopping iterations: 2
+
+Early stopping iterations: 2
+
+Early stopping iterations: 1
+
+Early stopping iterations: 2
+
+Early stopping iterations: 2
+
+Early stopping iterations: 3
+
+Early stopping iterations: 2
+
+Early stopping iterations: 3
+
+Early stopping iterations: 3
+
+Early stopping iterations: 3
+
+Early stopping iterations: 3
+
+Early stopping iterations: 3
+
+Early stopping iterations: 2
+
+Early stopping iterations: 2
+
+Early stopping iterations: 3
+
+Early stopping iterations: 3
+
+Early stopping iterations: 1

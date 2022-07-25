@@ -1,0 +1,37 @@
+def define_model_lstm_1_min() -> Tuple[
+    tf.keras.Model, List[np.ndarray], int, float, int
+]:
+    """LSTM model for 1-minute data with 13 features. Convolutional layers at start
+    to reduce the size of the input before LSTM. LSTM/GRU layers have fewer cells
+    compared to first-place model.
+
+    Returns:
+        model: keras model
+        initial_weights: Array of initial weights used to reset the model to its
+            original state
+        epochs: Number of epochs
+        lr: Learning rate
+        bs: Batch size
+    """
+
+    input = tf.keras.layers.Input((24 * 7 * 6, 13))
+    conv1 = tf.keras.layers.Conv1D(64, kernel_size=6, strides=3, activation="relu")(input)
+    conv2 = tf.keras.layers.Conv1D(64, kernel_size=6, strides=3, activation="relu")(conv1)
+    drop1 = tf.keras.layers.Dropout(0.2)(conv2)
+    lstm1 = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(128, return_sequences=True))(drop1)
+    gru1 = tf.keras.layers.Bidirectional(tf.keras.layers.GRU(128, return_sequences=True))(lstm1)
+    dense1 = tf.keras.layers.Dense(32, activation="relu")(gru1)
+    dense2 = tf.keras.layers.Dense(32, activation="relu")(dense1)
+    drop2 = tf.keras.layers.Dropout(0.2)(dense2)
+    flatten = tf.keras.layers.Flatten()(drop2)
+    dense3 = tf.keras.layers.Dense(64, activation="relu")(flatten)
+    output = tf.keras.layers.Dense(1)(dense3)
+    model = tf.keras.models.Model(inputs=input, outputs=output)
+    initial_weights = model.get_weights()
+    epochs = 7
+    lr = 0.00025
+    bs = 32
+    return model, initial_weights, epochs, lr, bs
+
+
+Early stopping iterations: 2
