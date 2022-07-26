@@ -4,12 +4,14 @@
 MagNet used convolutional neural network to 
 forecast the space weather disturbance-storm-time (Dst) index. 
 This model is developed by Dr. Belinda Trotta who wins the second-place solution 
-to the MagNet competition held by 
+to the [MagNet Competition](https://www.drivendata.org/competitions/73/noaa-magnetic-forecasting/) held by 
 the National Oceanic and Atmospheric Administration (NOAA) and National Aeronautics and 
 Space Administration (NASA) in 2020-21.
+The new [real-time High Definition Geomagnetic Model](https://www.ngdc.noaa.gov/geomag/HDGM/hdgm_rt.html) 
+will be driven in part by MagNet model. (It will be released at Nov. 2022.)
 
 The notebooks: [tutorial/magnet_cnn_tutorial.ipynb](https://github.com/liyo6397/MagNet/blob/explainable_ai/tutorials/magnet_cnn_tutorial.ipynb) 
-describe the machine learning approach to forecast the Dst index. It was selected 
+describes the machine learning approach to forecast the Dst index. It was selected 
 as the one of the materials for [Trustworthy Artificial Intelligence for Environmental Science(TAI4ES) 2022 
 Summer School](https://www2.cisl.ucar.edu/events/tai4es-2022-summer-school). 
 ### Prerequirements:
